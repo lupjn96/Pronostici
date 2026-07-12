@@ -13,7 +13,8 @@ import ModelComparison from './components/ModelComparison';
 import Settings from './components/Settings';
 
 import { ModelInput, PredictionResult, SavedPrediction, MODEL_VERSION } from './types';
-import { poissonModel, migrateSavedPrediction } from './poissonEngine';
+import { migrateSavedPrediction } from './poissonEngine';
+import { getModelById } from './modelRegistry';
 import { Sparkles, Calculator, ChevronLeft, ShieldAlert, CheckCircle } from 'lucide-react';
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
   // Stati per la nuova previsione attiva
   const [activeInput, setActiveInput] = useState<ModelInput | undefined>(undefined);
   const [activeResult, setActiveResult] = useState<PredictionResult | null>(null);
+  const [activeModelId, setActiveModelId] = useState<string>('poisson-standard');
   const [predictionView, setPredictionView] = useState<'form' | 'results'>('form');
 
   // Stato per notifica toast
@@ -60,11 +62,13 @@ export default function App() {
   };
 
   // Calcolo ed salvataggio della previsione
-  const handleCalculate = (input: ModelInput) => {
+  const handleCalculate = (input: ModelInput, modelId: string = 'poisson-standard') => {
     try {
-      const result = poissonModel.calculate(input);
+      const model = getModelById(modelId);
+      const result = model.calculate(input);
       setActiveInput(input);
       setActiveResult(result);
+      setActiveModelId(modelId);
       setPredictionView('results');
 
       // Crea un record per lo storico
@@ -79,7 +83,7 @@ export default function App() {
       setHistory(updatedHistory);
       localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
 
-      showToast('Previsione calcolata e salvata nello storico!');
+      showToast(`Previsione calcolata con ${model.name}!`);
     } catch (err) {
       console.error(err);
       showToast('Errore durante il calcolo della previsione', 'error');
@@ -142,6 +146,7 @@ export default function App() {
       const migrated = migrateSavedPrediction(saved);
       setActiveInput(migrated.input);
       setActiveResult(migrated.result);
+      setActiveModelId(migrated.result.modelId || 'poisson-standard');
       setPredictionView('results');
       setSection('prediction');
       showToast(`Caricato studio: ${migrated.input.homeTeam} vs ${migrated.input.awayTeam}`);
@@ -230,6 +235,7 @@ export default function App() {
               <PredictionForm
                 onCalculate={handleCalculate}
                 initialInput={activeInput}
+                initialModelId={activeModelId}
               />
             ) : (
               activeInput && activeResult && (

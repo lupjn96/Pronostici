@@ -9,11 +9,12 @@ import { validateInput } from '../poissonEngine';
 import { HelpCircle, AlertTriangle, Play, Sparkles } from 'lucide-react';
 
 interface PredictionFormProps {
-  onCalculate: (input: ModelInput) => void;
+  onCalculate: (input: ModelInput, modelId: string) => void;
   initialInput?: ModelInput;
+  initialModelId?: string;
 }
 
-export default function PredictionForm({ onCalculate, initialInput }: PredictionFormProps) {
+export default function PredictionForm({ onCalculate, initialInput, initialModelId }: PredictionFormProps) {
   const [homeTeam, setHomeTeam] = useState('Inter');
   const [awayTeam, setAwayTeam] = useState('Juventus');
   
@@ -31,9 +32,18 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
   const [matchesPlayed, setMatchesPlayed] = useState<string>('15');
   const [homeAdvantage, setHomeAdvantage] = useState<number>(0); // in %
 
+  const [selectedModelId, setSelectedModelId] = useState<string>('poisson-standard');
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
+
+  // Sincronizza il modello iniziale se presente
+  useEffect(() => {
+    if (initialModelId) {
+      setSelectedModelId(initialModelId);
+    }
+  }, [initialModelId]);
 
   // Carica i valori predefiniti salvati se presenti, o un input iniziale (es. dallo storico)
   useEffect(() => {
@@ -114,7 +124,7 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
     setWarnings(validation.warnings || {});
 
     // Passa i dati validati al genitore per il calcolo
-    onCalculate(input);
+    onCalculate(input, selectedModelId);
   };
 
   return (
@@ -132,6 +142,60 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
         >
           <Sparkles className="w-3.5 h-3.5" /> Dati Demo
         </button>
+      </div>
+
+      {/* Selettore Modello di Calcolo */}
+      <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700 space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-3">
+          Modello di Calcolo Attivo
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setSelectedModelId('poisson-standard')}
+            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between h-28 cursor-pointer ${
+              selectedModelId === 'poisson-standard'
+                ? 'border-emerald-500/40 bg-slate-800/40 ring-1 ring-emerald-500/10'
+                : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <span className={`block text-xs font-bold ${selectedModelId === 'poisson-standard' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                Poisson Standard v1.1
+              </span>
+              <span className="text-[10px] text-slate-400 mt-1 block leading-normal">
+                Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche indipendenti.
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 self-end mt-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedModelId === 'poisson-standard' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Selezionato</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedModelId('poisson-gamma')}
+            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between h-28 cursor-pointer ${
+              selectedModelId === 'poisson-gamma'
+                ? 'border-emerald-500/40 bg-slate-800/40 ring-1 ring-emerald-500/10'
+                : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <span className={`block text-xs font-bold ${selectedModelId === 'poisson-gamma' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                Poisson-Gamma Bayesiano v0.1
+              </span>
+              <span className="text-[10px] text-slate-400 mt-1 block leading-normal">
+                Modella i gol con un a-priori Gamma per catturare l'incertezza epistemica dovuta a dati ridotti.
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 self-end mt-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedModelId === 'poisson-gamma' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Selezionato</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700 space-y-5">

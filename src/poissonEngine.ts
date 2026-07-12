@@ -4,6 +4,7 @@
  */
 
 import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPrediction } from './types';
+import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
 
 // 1. Funzione fattoriale
 export function factorial(n: number): number {
@@ -115,35 +116,8 @@ export const poissonModel: PredictionModel = {
   description: 'Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche offensive e difensive dei team, pesate per le medie del campionato e l\'eventuale correzione manuale casa.',
   status: 'active',
   calculate: (input: ModelInput): PredictionResult => {
-    // 3. Calcolo dei gol attesi casa e ospite
-    let homeExpectedGoals = 0;
-    if (input.leagueHomeScoredAvg > 0) {
-      // Attacco Casa * Difesa Ospite * Media Campionato Casa
-      const homeAttack = input.homeScoredAvg / input.leagueHomeScoredAvg;
-      const awayDefense = input.awayConcededAvg / input.leagueHomeScoredAvg;
-      homeExpectedGoals = homeAttack * awayDefense * input.leagueHomeScoredAvg;
-    } else {
-      homeExpectedGoals = (input.homeScoredAvg + input.awayConcededAvg) / 2;
-    }
-    
-    // Applica vantaggio casa (Correzione manuale casa) soltanto se diverso da zero
-    if (input.homeAdvantage !== 0) {
-      homeExpectedGoals = homeExpectedGoals * (1 + input.homeAdvantage / 100);
-    }
-
-    let awayExpectedGoals = 0;
-    if (input.leagueAwayScoredAvg > 0) {
-      // Attacco Ospite * Difesa Casa * Media Campionato Trasferta
-      const awayAttack = input.awayScoredAvg / input.leagueAwayScoredAvg;
-      const homeDefense = input.homeConcededAvg / input.leagueAwayScoredAvg;
-      awayExpectedGoals = awayAttack * homeDefense * input.leagueAwayScoredAvg;
-    } else {
-      awayExpectedGoals = (input.awayScoredAvg + input.homeConcededAvg) / 2;
-    }
-
-    // Assicuriamoci che i gol attesi non siano mai negativi, NaN o infiniti
-    homeExpectedGoals = Math.max(0, isNaN(homeExpectedGoals) || !isFinite(homeExpectedGoals) ? 0 : homeExpectedGoals);
-    awayExpectedGoals = Math.max(0, isNaN(awayExpectedGoals) || !isFinite(awayExpectedGoals) ? 0 : awayExpectedGoals);
+    // 3. Calcolo dei gol attesi casa e ospite tramite modulo condiviso
+    const { homeExpectedGoals, awayExpectedGoals } = calculateExpectedGoals(input);
 
     // Costruiamo una griglia 13x13 per calcolare 1-X-2 con elevata accuratezza (0-12 gol)
     const CALC_LIMIT = 12;
@@ -420,7 +394,21 @@ export function migrateSavedPrediction(pred: any): SavedPrediction {
       dataQuality: Number(uncertainty.dataQuality) || 0,
       solidityIndex: solidityIndex,
       classification: uncertainty.classification || 'Incertezza Moderata'
-    }
+    },
+    parameterUncertainty: rawResult.parameterUncertainty ? {
+      homeLambdaMean: Number(rawResult.parameterUncertainty.homeLambdaMean) || 0,
+      awayLambdaMean: Number(rawResult.parameterUncertainty.awayLambdaMean) || 0,
+      homeLambdaVariance: Number(rawResult.parameterUncertainty.homeLambdaVariance) || 0,
+      awayLambdaVariance: Number(rawResult.parameterUncertainty.awayLambdaVariance) || 0,
+      homeLambdaStdDev: Number(rawResult.parameterUncertainty.homeLambdaStdDev) || 0,
+      awayLambdaStdDev: Number(rawResult.parameterUncertainty.awayLambdaStdDev) || 0,
+      homeShape: Number(rawResult.parameterUncertainty.homeShape) || 0,
+      awayShape: Number(rawResult.parameterUncertainty.awayShape) || 0,
+      homeRate: Number(rawResult.parameterUncertainty.homeRate) || 0,
+      awayRate: Number(rawResult.parameterUncertainty.awayRate) || 0,
+      epistemicIndex: Number(rawResult.parameterUncertainty.epistemicIndex) || 0
+    } : undefined,
+    totalUncertaintyIndex: rawResult.totalUncertaintyIndex !== undefined ? Number(rawResult.totalUncertaintyIndex) : undefined
   };
 
   return {

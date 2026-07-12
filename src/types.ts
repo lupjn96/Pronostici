@@ -54,6 +54,20 @@ export interface PredictionResult {
     solidityIndex: number;      // Indice preliminare di solidità da 0 a 100
     classification: 'Bassa Incertezza' | 'Incertezza Moderata' | 'Alta Incertezza';
   };
+  parameterUncertainty?: {
+    homeLambdaMean: number;
+    awayLambdaMean: number;
+    homeLambdaVariance: number;
+    awayLambdaVariance: number;
+    homeLambdaStdDev: number;
+    awayLambdaStdDev: number;
+    homeShape: number;
+    awayShape: number;
+    homeRate: number;
+    awayRate: number;
+    epistemicIndex: number;
+  };
+  totalUncertaintyIndex?: number;
 }
 
 export interface PredictionModel {

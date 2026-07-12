@@ -261,6 +261,96 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
         </div>
       </div>
 
+      {/* Sezione Incertezza dei parametri (Epistemica) - Solo per Poisson-Gamma Bayesiano */}
+      {result.modelId === 'poisson-gamma' && result.parameterUncertainty && (
+        <div className="bg-[#1e293b] rounded-2xl border border-slate-700 p-6 shadow-xl space-y-6">
+          <div className="border-b border-slate-700 pb-3 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Incertezza dei Parametri & Analisi Epistemica</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                Il modello tratta i gol attesi come parametri incerti. L’indice epistemico misura quanto la stima di lambda dipende dalla quantità limitata di dati.
+              </p>
+            </div>
+            {result.totalUncertaintyIndex !== undefined && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2 text-right">
+                <span className="block text-[9px] font-mono uppercase text-slate-500 tracking-wider">Incertezza Totale</span>
+                <span className="text-xl font-black font-mono text-emerald-400">{fmt(result.totalUncertaintyIndex, 1)}%</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Squadra Casa */}
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-3">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block border-b border-slate-800 pb-1.5">
+                {input.homeTeam} (Casa)
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Media λ (Mean)</span>
+                  <span className="font-mono font-bold text-white">{fmt(result.parameterUncertainty.homeLambdaMean, 3)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Dev. Standard λ</span>
+                  <span className="font-mono font-bold text-emerald-400">± {fmt(result.parameterUncertainty.homeLambdaStdDev, 3)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Gamma Shape (α)</span>
+                  <span className="font-mono text-slate-300">{fmt(result.parameterUncertainty.homeShape, 2)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Gamma Rate (β)</span>
+                  <span className="font-mono text-slate-300">{fmt(result.parameterUncertainty.homeRate, 2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Squadra Ospite */}
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-3">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block border-b border-slate-800 pb-1.5">
+                {input.awayTeam} (Ospite)
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Media λ (Mean)</span>
+                  <span className="font-mono font-bold text-white">{fmt(result.parameterUncertainty.awayLambdaMean, 3)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Dev. Standard λ</span>
+                  <span className="font-mono font-bold text-emerald-400">± {fmt(result.parameterUncertainty.awayLambdaStdDev, 3)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Gamma Shape (α)</span>
+                  <span className="font-mono text-slate-300">{fmt(result.parameterUncertainty.awayShape, 2)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Gamma Rate (β)</span>
+                  <span className="font-mono text-slate-300">{fmt(result.parameterUncertainty.awayRate, 2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Indice Epistemico */}
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase block border-b border-slate-800 pb-1.5">
+                  Incertezza Epistemica
+                </span>
+                <p className="text-[10px] text-slate-400 leading-normal mt-2">
+                  La deviazione standard rispetto alla media indica l'incertezza residua sulla stima del parametro λ.
+                </p>
+              </div>
+              <div className="bg-slate-900 p-3 rounded border border-slate-800/80 flex items-center justify-between mt-3">
+                <span className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">Indice Epistemico</span>
+                <span className="text-2xl font-black font-mono text-emerald-400">
+                  {fmt(result.parameterUncertainty.epistemicIndex, 1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Matrice dei Risultati Esatti (Heatmap 7x7) */}
       <div className="p-5 rounded-xl border border-slate-700 bg-slate-800/40">
         <div className="flex items-center justify-between mb-4">

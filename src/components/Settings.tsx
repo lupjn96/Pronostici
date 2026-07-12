@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, Download, Upload, Check, AlertTriangle, HelpCircle, Save, Database, Settings as SettingsIcon } from 'lucide-react';
 import { SavedPrediction, MODEL_VERSION } from '../types';
 import { runDiagnostics, TestResult } from '../poissonEngine.validation';
+import { runPoissonGammaValidation } from '../poissonGammaEngine.validation';
 
 interface SettingsProps {
   onClearHistory: () => void;
@@ -24,11 +25,12 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
-  const [diagResults, setDiagResults] = useState<TestResult[] | null>(null);
+  const [diagResults, setDiagResults] = useState<(TestResult & { model?: string })[] | null>(null);
 
   const handleRunDiag = () => {
-    const results = runDiagnostics();
-    setDiagResults(results);
+    const poissonResults = runDiagnostics().map(t => ({ ...t, model: 'Poisson Standard v1.1.0' }));
+    const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Bayesiano v0.1.0' }));
+    setDiagResults([...poissonResults, ...gammaResults]);
   };
 
   useEffect(() => {
@@ -275,10 +277,17 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
                 ) : (
                   <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 )}
-                <div className="text-xs">
-                  <h4 className={`font-bold ${test.passed ? 'text-white' : 'text-rose-400'}`}>
-                    {test.name}
-                  </h4>
+                <div className="text-xs flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className={`font-bold ${test.passed ? 'text-white' : 'text-rose-400'}`}>
+                      {test.name}
+                    </h4>
+                    {test.model && (
+                      <span className="font-mono text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700/50">
+                        {test.model}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-400 mt-0.5 leading-relaxed">{test.message}</p>
                 </div>
               </div>
