@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Ottimizzazioni per dispositivi mobili iOS (iPhone) */
+body {
+  font-family: var(--font-sans);
+  background-color: #0f172a; /* Sleek Interface background */
+  color: #e2e8f0; /* slate-200 */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* Stili scrollbar personalizzati */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Aggiunta di spazi sicuri per notch iPhone */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}

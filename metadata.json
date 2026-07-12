@@ -1,0 +1,6 @@
+{
+  "name": "Football Prediction Lab",
+  "description": "Laboratorio avanzato di predizione calcistica basato sulla distribuzione stocastica di Poisson, calcolo dell'entropia e indici di affidabilità.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
