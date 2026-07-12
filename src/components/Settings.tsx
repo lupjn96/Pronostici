@@ -29,7 +29,7 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
 
   const handleRunDiag = () => {
     const poissonResults = runDiagnostics().map(t => ({ ...t, model: 'Poisson Standard v1.1.0' }));
-    const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Bayesiano v0.1.0' }));
+    const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Empirico v0.1.0' }));
     setDiagResults([...poissonResults, ...gammaResults]);
   };
 

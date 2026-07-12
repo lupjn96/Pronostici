@@ -14,7 +14,7 @@ export interface TestResult {
 }
 
 /**
- * Esegue i test di validazione da A a E per il motore Poisson-Gamma Bayesiano
+ * Esegue i test di validazione da A a E per il motore Poisson-Gamma Empirico
  */
 export function runPoissonGammaValidation(): TestResult[] {
   const results: TestResult[] = [];

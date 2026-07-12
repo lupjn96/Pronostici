@@ -261,7 +261,7 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
         </div>
       </div>
 
-      {/* Sezione Incertezza dei parametri (Epistemica) - Solo per Poisson-Gamma Bayesiano */}
+      {/* Sezione Incertezza dei parametri (Epistemica) - Solo per Poisson-Gamma Empirico */}
       {result.modelId === 'poisson-gamma' && result.parameterUncertainty && (
         <div className="bg-[#1e293b] rounded-2xl border border-slate-700 p-6 shadow-xl space-y-6">
           <div className="border-b border-slate-700 pb-3 flex items-center justify-between flex-wrap gap-2">
@@ -346,6 +346,19 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
                   {fmt(result.parameterUncertainty.epistemicIndex, 1)}%
                 </span>
               </div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs text-slate-300 space-y-3">
+            <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-wider text-[10px]">
+              <Info className="w-4 h-4 text-blue-400 shrink-0" />
+              <span>Nota scientifica</span>
+            </div>
+            <div className="space-y-2 leading-relaxed text-slate-300">
+              <p>Questa versione implementa un modello Poisson-Gamma empirico.</p>
+              <p>L'incertezza di λ viene stimata utilizzando il numero di partite disponibili.</p>
+              <p>Non viene ancora effettuato un vero aggiornamento bayesiano della distribuzione a posteriori basato sui gol osservati.</p>
+              <p>Questa implementazione rappresenta il primo passo verso il futuro modello Poisson-Gamma Bayesiano completo.</p>
             </div>
           </div>
         </div>
