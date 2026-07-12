@@ -21,7 +21,7 @@ export default function Dashboard({ predictions, onNavigate, onOpenPrediction, o
   // Calcolo statistiche storiche
   const totalCount = predictions.length;
   const avgReliability = totalCount > 0
-    ? predictions.reduce((acc, curr) => acc + curr.result.uncertainty.reliability, 0) / totalCount
+    ? predictions.reduce((acc, curr) => acc + (curr.result.uncertainty.solidityIndex ?? (curr.result.uncertainty as any).reliability ?? 0), 0) / totalCount
     : 0;
   const avgQuality = totalCount > 0
     ? predictions.reduce((acc, curr) => acc + curr.result.uncertainty.dataQuality, 0) / totalCount
@@ -75,7 +75,7 @@ export default function Dashboard({ predictions, onNavigate, onOpenPrediction, o
         <div className="p-5 rounded-xl border border-slate-700 bg-slate-800/40 flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
-              Affidabilità Media
+              Solidità Media
             </span>
             <span className="text-2xl font-black font-mono text-white">
               {totalCount > 0 ? `${formatComma(avgReliability)}%` : 'N/D'}
@@ -193,7 +193,7 @@ export default function Dashboard({ predictions, onNavigate, onOpenPrediction, o
             </div>
 
             <p className="text-slate-400 text-xs leading-relaxed">
-              Il calcolo stima in modo matematico la distribuzione di probabilità dei punteggi, calcola l’entropia per quantificare il disordine del pronostico (Incertezza) e unisce la qualità dei dati con la deviazione standard per l'Affidabilità.
+              Il calcolo stima in modo matematico la distribuzione di probabilità dei punteggi, calcola l’entropia degli esiti per quantificare il disordine del pronostico (Incertezza) e unisce la qualità dei dati con l'entropia della distribuzione per determinare l'Indice di Solidità.
             </p>
 
             <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 space-y-2">
@@ -205,13 +205,13 @@ export default function Dashboard({ predictions, onNavigate, onOpenPrediction, o
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Funzione Poisson & Fattoriale
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Calcolo xG con Vantaggio Casa
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Calcolo xG con Correzione Casa
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Entropia & Indice Incertezza
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Entropia degli esiti 1-X-2
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Qualità Dati & Affidabilità %
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Qualità Dati & Solidità %
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Matrice 7x7 interattiva

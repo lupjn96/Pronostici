@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Download, Upload, Check, AlertTriangle, HelpCircle, Save, Database, Settings as SettingsIcon } from 'lucide-react';
 import { SavedPrediction } from '../types';
+import { runDiagnostics, TestResult } from '../poissonEngine.validation';
 
 interface SettingsProps {
   onClearHistory: () => void;
@@ -18,11 +19,17 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
   const [defLeagueHomeScored, setDefLeagueHomeScored] = useState<number>(1.45);
   const [defLeagueAwayScored, setDefLeagueAwayScored] = useState<number>(1.15);
   const [defMatchesPlayed, setDefMatchesPlayed] = useState<number>(15);
-  const [defHomeAdvantage, setDefHomeAdvantage] = useState<number>(15);
+  const [defHomeAdvantage, setDefHomeAdvantage] = useState<number>(0);
 
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
+  const [diagResults, setDiagResults] = useState<TestResult[] | null>(null);
+
+  const handleRunDiag = () => {
+    const results = runDiagnostics();
+    setDiagResults(results);
+  };
 
   useEffect(() => {
     const cachedHome = localStorage.getItem('def_league_home_scored');
@@ -149,7 +156,7 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
             </div>
 
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5 font-medium">Vantaggio Casa Standard (%)</label>
+              <label className="block text-xs text-slate-400 mb-1.5 font-medium">Correzione casa predefinita (%)</label>
               <input
                 type="number"
                 min="-100"
@@ -238,6 +245,50 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
             </div>
           )}
         </div>
+      </div>
+
+      {/* Diagnostica & Validazione Motore */}
+      <div className="p-6 rounded-2xl border border-slate-700/50 bg-slate-800/20 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-700 pb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <SettingsIcon className="w-5 h-5 text-emerald-400" />
+            <h3 className="font-semibold text-white">Suite di Validazione Poisson v1.1</h3>
+          </div>
+          <button
+            onClick={handleRunDiag}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-md transition-all flex items-center justify-center gap-1.5 text-xs shadow-md cursor-pointer"
+          >
+            Esegui Test Diagnostici
+          </button>
+        </div>
+
+        <p className="text-slate-400 text-xs">
+          La suite esegue controlli rigorosi sul motore di calcolo, verificando la stabilità dei parametri per lambde uguali a zero, l'invarianza simmetrica e la correctness formale della massa probabilistica (somma 1-X-2 = 100%, complementarietà mercati Over/Under e Goal/NoGoal).
+        </p>
+
+        {diagResults ? (
+          <div className="space-y-2 mt-4">
+            {diagResults.map((test, idx) => (
+              <div key={idx} className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                {test.passed ? (
+                  <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <div className="text-xs">
+                  <h4 className={`font-bold ${test.passed ? 'text-white' : 'text-rose-400'}`}>
+                    {test.name}
+                  </h4>
+                  <p className="text-slate-400 mt-0.5 leading-relaxed">{test.message}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-4 bg-slate-900/30 rounded-xl border border-dashed border-slate-800 text-slate-500 text-xs font-sans">
+            Clicca su "Esegui Test Diagnostici" per verificare formalmente la rigorosità matematica del motore Poisson.
+          </div>
+        )}
       </div>
 
       {/* Matematica di Poisson Spiegata */}

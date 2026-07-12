@@ -152,10 +152,10 @@ export default function HistoryList({ predictions, onDelete, onOpen }: HistoryLi
 
                   <div className="text-center">
                     <span className="block text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1">
-                      Affidabilità
+                      Solidità
                     </span>
                     <span className="font-mono font-bold text-slate-200 text-sm flex items-center gap-1 justify-center">
-                      <Award className="w-3.5 h-3.5 text-emerald-400" /> {formatComma(pred.result.uncertainty.reliability, 0)}%
+                      <Award className="w-3.5 h-3.5 text-emerald-400" /> {formatComma(pred.result.uncertainty.solidityIndex ?? (pred.result.uncertainty as any).reliability ?? 0, 0)}%
                     </span>
                   </div>
                 </div>

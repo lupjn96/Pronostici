@@ -29,9 +29,10 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
 
   // Altri parametri richiesti
   const [matchesPlayed, setMatchesPlayed] = useState<string>('15');
-  const [homeAdvantage, setHomeAdvantage] = useState<number>(15); // in %
+  const [homeAdvantage, setHomeAdvantage] = useState<number>(0); // in %
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
 
   // Carica i valori predefiniti salvati se presenti, o un input iniziale (es. dallo storico)
@@ -71,8 +72,9 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
     setLeagueHomeScoredAvg('1,40');
     setLeagueAwayScoredAvg('1,10');
     setMatchesPlayed('12');
-    setHomeAdvantage(12);
+    setHomeAdvantage(0);
     setErrors({});
+    setWarnings({});
     setGeneralError(null);
   };
 
@@ -107,6 +109,9 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
       setGeneralError('Correggi gli errori nel modulo prima di procedere.');
       return;
     }
+
+    // Imposta gli eventuali avvisi del modello
+    setWarnings(validation.warnings || {});
 
     // Passa i dati validati al genitore per il calcolo
     onCalculate(input);
@@ -306,11 +311,16 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
           </div>
         </div>
 
-        {/* Vantaggio Casa Regolabile - Slider con indicatori */}
+        {/* Correzione manuale casa */}
         <div className="pt-3 border-t border-slate-700">
-          <div className="flex justify-between items-center mb-1.5">
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Vantaggio Casa</label>
-            <span className="font-mono text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+          <div className="flex justify-between items-start mb-1.5">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Correzione manuale casa</label>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Usare soltanto per condizioni particolari non già rappresentate dalle statistiche casa/trasferta.
+              </p>
+            </div>
+            <span className="font-mono text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md shrink-0 ml-4">
               {homeAdvantage > 0 ? '+' : ''}{homeAdvantage}%
             </span>
           </div>
@@ -332,6 +342,21 @@ export default function PredictionForm({ onCalculate, initialInput }: Prediction
           </div>
         </div>
       </div>
+
+      {/* Avvisi del Modello */}
+      {Object.keys(warnings).length > 0 && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-col gap-2 text-amber-400 text-xs">
+          <div className="flex items-center gap-2 font-bold uppercase tracking-wider">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Avvisi di calcolo (Attenzione)</span>
+          </div>
+          <ul className="list-disc list-inside space-y-1 font-sans">
+            {Object.values(warnings).map((warn, i) => (
+              <li key={i}>{warn}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Errore Generale */}
       {generalError && (

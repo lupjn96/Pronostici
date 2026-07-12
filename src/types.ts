@@ -20,7 +20,7 @@ export interface ExactScoreProb {
   score: string; // es: "1-0"
   homeGoals: number;
   awayGoals: number;
-  probability: number; // Frazione da 0 a 1 (moltiplicata per 100 per visualizzare la %)
+  probability: number; // Percentuale da 0 a 100
 }
 
 export interface PredictionResult {
@@ -37,11 +37,19 @@ export interface PredictionResult {
   noGoal: number;      // % (0-100)
   scoreMatrix: number[][]; // Matrice 7x7 da 0-0 a 6-6
   exactScores: ExactScoreProb[]; // Top 5 risultati esatti
+  modelId: string;
+  modelName: string;
+  modelVersion: string;
+  calculationDiagnostics: {
+    gridProbabilityMass: number;
+    residualProbabilityMass: number;
+    calculationLimit: number;
+  };
   uncertainty: {
     entropy: number;            // Entropia normalizzata da 0 a 1
     uncertaintyIndex: number;   // Indice da 0 a 100
     dataQuality: number;        // Qualità dati da 0 a 100
-    reliability: number;        // Affidabilità da 0 a 100
+    solidityIndex: number;      // Indice preliminare di solidità da 0 a 100
     classification: 'Bassa Incertezza' | 'Incertezza Moderata' | 'Alta Incertezza';
   };
 }

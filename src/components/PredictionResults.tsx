@@ -205,10 +205,10 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
           </div>
         </div>
 
-        {/* Incertezza & Affidabilità */}
+        {/* Incertezza & Solidità */}
         <div className="bg-[#1e293b] rounded-2xl border border-slate-700 p-5 shadow-xl relative overflow-hidden flex flex-col justify-between">
           <div>
-            <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-4 tracking-wider">Incertezza & Affidabilità</h4>
+            <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-4 tracking-wider">Incertezza & Solidità</h4>
             
             <div className="space-y-4">
               <div>
@@ -226,7 +226,7 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
 
               <div>
                 <div className="flex justify-between items-center text-xs text-slate-400 mb-1">
-                  <span>Indice di Incertezza</span>
+                  <span>Entropia degli esiti 1-X-2</span>
                   <span className="font-mono text-white font-bold">{fmt(result.uncertainty.uncertaintyIndex, 1)}/100</span>
                 </div>
                 <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
@@ -235,6 +235,9 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
                     className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500"
                   />
                 </div>
+                <p className="text-[9px] text-slate-400 leading-normal mt-1">
+                  Misura quanto le probabilità sono distribuite tra vittoria casa, pareggio e vittoria ospite. Non include ancora l’incertezza sui parametri del modello.
+                </p>
               </div>
             </div>
           </div>
@@ -242,14 +245,17 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
           <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 mt-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
-                Affidabilità Stima
+                Indice preliminare di solidità
               </span>
               <span className="text-2xl font-black font-mono text-emerald-400">
-                {fmt(result.uncertainty.reliability, 0)}%
+                {fmt(result.uncertainty.solidityIndex ?? (result.uncertainty as any).reliability ?? 0, 0)}%
               </span>
             </div>
-            <p className="text-[10px] text-slate-500 leading-normal font-mono">
-              Basato su {input.matchesPlayed} partite analizzate. Entropia normalizzata: {fmt(result.uncertainty.entropy, 2)}. Parametri stabili.
+            <p className="text-[10px] text-slate-400 leading-normal mb-1">
+              Indicatore euristico basato sulla quantità dei dati e sulla concentrazione della previsione. Non rappresenta ancora una validazione statistica del modello.
+            </p>
+            <p className="text-[9px] text-slate-500 leading-normal font-mono">
+              Basato su {input.matchesPlayed} partite analizzate. Entropia normalizzata: {fmt(result.uncertainty.entropy, 2)}.
             </p>
           </div>
         </div>
@@ -328,6 +334,39 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
             </div>
           </div>
         )}
+      </div>
+
+      {/* Informazioni modello */}
+      <div className="p-5 rounded-2xl border border-slate-700 bg-slate-800/20 space-y-3">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <Info className="w-4 h-4 text-emerald-400" /> Informazioni Modello e Diagnostica
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-2">
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60">
+            <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Nome Modello</span>
+            <span className="text-xs font-bold text-white block truncate">{result.modelName || 'Poisson standard'}</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60">
+            <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Versione</span>
+            <span className="text-xs font-mono font-bold text-emerald-400 block">{result.modelVersion || '1.0.0'}</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60">
+            <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Limite Calcolo</span>
+            <span className="text-xs font-mono font-bold text-white block">{result.calculationDiagnostics?.calculationLimit ?? 12} gol</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60">
+            <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Massa Coperta</span>
+            <span className="text-xs font-mono font-bold text-emerald-400 block">
+              {result.calculationDiagnostics ? (result.calculationDiagnostics.gridProbabilityMass * 100).toFixed(6) : '99,999999'}%
+            </span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60 col-span-2 md:col-span-1">
+            <span className="block text-[9px] text-slate-500 uppercase font-mono mb-1">Massa Residua</span>
+            <span className="text-xs font-mono font-bold text-amber-500 block">
+              {result.calculationDiagnostics ? (result.calculationDiagnostics.residualProbabilityMass * 100).toFixed(6) : '0,000000'}%
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

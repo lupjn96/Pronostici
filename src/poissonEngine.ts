@@ -29,10 +29,12 @@ export function poissonProbability(k: number, lambda: number): number {
 export interface ValidationResult {
   isValid: boolean;
   errors: Record<string, string>;
+  warnings: Record<string, string>;
 }
 
 export function validateInput(input: ModelInput): ValidationResult {
   const errors: Record<string, string> = {};
+  const warnings: Record<string, string> = {};
 
   if (!input.homeTeam.trim()) errors.homeTeam = 'Inserisci il nome della squadra di casa';
   if (!input.awayTeam.trim()) errors.awayTeam = 'Inserisci il nome della squadra ospite';
@@ -40,50 +42,76 @@ export function validateInput(input: ModelInput): ValidationResult {
     errors.awayTeam = 'La squadra di casa e quella ospite devono essere diverse';
   }
 
-  // Check per campi numerici negativi o NaN
-  const checkNegativeAndNaN = (val: number, field: string, label: string) => {
-    if (isNaN(val)) {
-      errors[field] = `${label} deve essere un numero valido`;
+  // Check per campi numerici validi, finiti, non NaN, e negativi
+  const checkValidNumber = (val: number, field: string, label: string) => {
+    if (isNaN(val) || !isFinite(val)) {
+      errors[field] = `${label} deve essere un numero valido e finito`;
     } else if (val < 0) {
       errors[field] = `${label} non può essere un valore negativo`;
+    } else if (val > 10) {
+      warnings[field] = `${label} è molto alta (> 10). Assicurati che il valore sia corretto.`;
     }
   };
 
-  checkNegativeAndNaN(input.homeScoredAvg, 'homeScoredAvg', 'Media gol segnati in casa');
-  checkNegativeAndNaN(input.homeConcededAvg, 'homeConcededAvg', 'Media gol subiti in casa');
-  checkNegativeAndNaN(input.awayScoredAvg, 'awayScoredAvg', 'Media gol segnati in trasferta');
-  checkNegativeAndNaN(input.awayConcededAvg, 'awayConcededAvg', 'Media gol subiti in trasferta');
+  checkValidNumber(input.homeScoredAvg, 'homeScoredAvg', 'Media gol segnati in casa');
+  checkValidNumber(input.homeConcededAvg, 'homeConcededAvg', 'Media gol subiti in casa');
+  checkValidNumber(input.awayScoredAvg, 'awayScoredAvg', 'Media gol segnati in trasferta');
+  checkValidNumber(input.awayConcededAvg, 'awayConcededAvg', 'Media gol subiti in trasferta');
   
-  // Controlli divisione per zero
-  if (isNaN(input.leagueHomeScoredAvg) || input.leagueHomeScoredAvg <= 0) {
-    errors.leagueHomeScoredAvg = 'La media gol in casa del campionato deve essere maggiore di zero';
+  // Controlli divisione per zero e validità per il campionato
+  if (isNaN(input.leagueHomeScoredAvg) || !isFinite(input.leagueHomeScoredAvg) || input.leagueHomeScoredAvg <= 0) {
+    errors.leagueHomeScoredAvg = 'La media gol in casa del campionato deve essere maggiore di zero e finita';
+  } else if (input.leagueHomeScoredAvg > 10) {
+    warnings.leagueHomeScoredAvg = 'La media gol in casa del campionato è insolitamente alta (> 10).';
   }
-  if (isNaN(input.leagueAwayScoredAvg) || input.leagueAwayScoredAvg <= 0) {
-    errors.leagueAwayScoredAvg = 'La media gol in trasferta del campionato deve essere maggiore di zero';
+
+  if (isNaN(input.leagueAwayScoredAvg) || !isFinite(input.leagueAwayScoredAvg) || input.leagueAwayScoredAvg <= 0) {
+    errors.leagueAwayScoredAvg = 'La media gol in trasferta del campionato deve essere maggiore di zero e finita';
+  } else if (input.leagueAwayScoredAvg > 10) {
+    warnings.leagueAwayScoredAvg = 'La media gol in trasferta del campionato è insolitamente alta (> 10).';
   }
 
   // Controllo partite giocate
-  if (isNaN(input.matchesPlayed) || input.matchesPlayed < 1) {
+  if (isNaN(input.matchesPlayed) || !isFinite(input.matchesPlayed) || input.matchesPlayed < 1) {
     errors.matchesPlayed = 'Il numero di partite giocate deve essere almeno 1';
   } else if (!Number.isInteger(input.matchesPlayed)) {
     errors.matchesPlayed = 'Il numero di partite deve essere un numero intero';
   }
 
-  // Controllo vantaggio casa
-  if (isNaN(input.homeAdvantage) || input.homeAdvantage < -100 || input.homeAdvantage > 200) {
-    errors.homeAdvantage = 'Il vantaggio casa deve essere compreso tra -100% e +200%';
+  // Controllo vantaggio casa (correzione manuale casa)
+  if (isNaN(input.homeAdvantage) || !isFinite(input.homeAdvantage) || input.homeAdvantage < -100 || input.homeAdvantage > 200) {
+    errors.homeAdvantage = 'La correzione manuale casa deve essere compresa tra -100% e +200%';
+  }
+
+  // Controllo preventivo per lambde (gol attesi) superiori a 10
+  if (Object.keys(errors).length === 0) {
+    const lambdaHome = (input.leagueHomeScoredAvg > 0)
+      ? (input.homeScoredAvg / input.leagueHomeScoredAvg) * (input.awayConcededAvg / input.leagueHomeScoredAvg) * input.leagueHomeScoredAvg * (input.homeAdvantage !== 0 ? (1 + input.homeAdvantage / 100) : 1)
+      : (input.homeScoredAvg + input.awayConcededAvg) / 2;
+
+    const lambdaAway = (input.leagueAwayScoredAvg > 0)
+      ? (input.awayScoredAvg / input.leagueAwayScoredAvg) * (input.homeConcededAvg / input.leagueAwayScoredAvg) * input.leagueAwayScoredAvg
+      : (input.awayScoredAvg + input.homeConcededAvg) / 2;
+
+    if (lambdaHome > 10) {
+      warnings.lambdaHome = `I gol attesi stimati per la squadra di casa (${lambdaHome.toFixed(2)}) sono superiori a 10. Il modello potrebbe perdere precisione.`;
+    }
+    if (lambdaAway > 10) {
+      warnings.lambdaAway = `I gol attesi stimati per la squadra ospite (${lambdaAway.toFixed(2)}) sono superiori a 10. Il modello potrebbe perdere precisione.`;
+    }
   }
 
   return {
     isValid: Object.keys(errors).length === 0,
-    errors
+    errors,
+    warnings
   };
 }
 
-// Modello di previsione basato sulla distribuzione di Poisson
+// Modello di previsione basato sulla distribuzione di Poisson v1.1
 export const poissonModel: PredictionModel = {
-  id: 'poisson',
-  name: 'Modello Poisson standard',
+  id: 'poisson-standard',
+  name: 'Poisson standard',
   description: 'Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche offensive e difensive dei team, pesate per le medie del campionato e il vantaggio casalingo.',
   status: 'active',
   calculate: (input: ModelInput): PredictionResult => {
@@ -97,8 +125,11 @@ export const poissonModel: PredictionModel = {
     } else {
       homeExpectedGoals = (input.homeScoredAvg + input.awayConcededAvg) / 2;
     }
-    // Applica vantaggio casa (es: 15% significa moltiplicare per 1.15)
-    homeExpectedGoals = homeExpectedGoals * (1 + input.homeAdvantage / 100);
+    
+    // Applica vantaggio casa (Correzione manuale casa) soltanto se diverso da zero
+    if (input.homeAdvantage !== 0) {
+      homeExpectedGoals = homeExpectedGoals * (1 + input.homeAdvantage / 100);
+    }
 
     let awayExpectedGoals = 0;
     if (input.leagueAwayScoredAvg > 0) {
@@ -110,11 +141,11 @@ export const poissonModel: PredictionModel = {
       awayExpectedGoals = (input.awayScoredAvg + input.homeConcededAvg) / 2;
     }
 
-    // Assicuriamoci che i gol attesi non siano mai negativi o NaN
-    homeExpectedGoals = Math.max(0, isNaN(homeExpectedGoals) ? 0 : homeExpectedGoals);
-    awayExpectedGoals = Math.max(0, isNaN(awayExpectedGoals) ? 0 : awayExpectedGoals);
+    // Assicuriamoci che i gol attesi non siano mai negativi, NaN o infiniti
+    homeExpectedGoals = Math.max(0, isNaN(homeExpectedGoals) || !isFinite(homeExpectedGoals) ? 0 : homeExpectedGoals);
+    awayExpectedGoals = Math.max(0, isNaN(awayExpectedGoals) || !isFinite(awayExpectedGoals) ? 0 : awayExpectedGoals);
 
-    // Costruiamo una griglia 13x13 per calcolare 1-X-2 con elevata accuratezza
+    // Costruiamo una griglia 13x13 per calcolare 1-X-2 con elevata accuratezza (0-12 gol)
     const CALC_LIMIT = 12;
     const calcGrid: number[][] = [];
     for (let h = 0; h <= CALC_LIMIT; h++) {
@@ -122,11 +153,22 @@ export const poissonModel: PredictionModel = {
       for (let a = 0; a <= CALC_LIMIT; a++) {
         const pH = poissonProbability(h, homeExpectedGoals);
         const pA = poissonProbability(a, awayExpectedGoals);
-        calcGrid[h][a] = pH * pA;
+        const cellVal = pH * pA;
+        calcGrid[h][a] = isNaN(cellVal) || !isFinite(cellVal) ? 0 : cellVal;
       }
     }
 
-    // 5, 6, 7. Calcolo probabilità vittoria casa, pareggio, vittoria ospite
+    // Calcolo massa probabilistica della griglia
+    let gridProbabilityMass = 0;
+    for (let h = 0; h <= CALC_LIMIT; h++) {
+      for (let a = 0; a <= CALC_LIMIT; a++) {
+        gridProbabilityMass += calcGrid[h][a];
+      }
+    }
+    gridProbabilityMass = Math.max(0, Math.min(1, gridProbabilityMass));
+    const residualProbabilityMass = Math.max(0, Math.min(1, 1 - gridProbabilityMass));
+
+    // Calcolo probabilità grezza vittoria casa, pareggio, vittoria ospite
     let rawHomeWin = 0;
     let rawDraw = 0;
     let rawAwayWin = 0;
@@ -143,55 +185,81 @@ export const poissonModel: PredictionModel = {
       }
     }
 
-    // Normalizzazione delle probabilità 1-X-2 affinché sommino esattamente al 100%
-    const totalRaw1X2 = rawHomeWin + rawDraw + rawAwayWin;
-    const probHomeWin = totalRaw1X2 > 0 ? (rawHomeWin / totalRaw1X2) * 100 : 33.33;
-    const probDraw = totalRaw1X2 > 0 ? (rawDraw / totalRaw1X2) * 100 : 33.34;
-    const probAwayWin = totalRaw1X2 > 0 ? (rawAwayWin / totalRaw1X2) * 100 : 33.33;
+    // Normalizzazione delle probabilità 1-X-2 usando gridProbabilityMass
+    let probHomeWin = gridProbabilityMass > 0 ? (rawHomeWin / gridProbabilityMass) * 100 : 33.333333;
+    let probDraw = gridProbabilityMass > 0 ? (rawDraw / gridProbabilityMass) * 100 : 33.333334;
+    let probAwayWin = gridProbabilityMass > 0 ? (rawAwayWin / gridProbabilityMass) * 100 : 33.333333;
 
-    // 4. Matrice risultati da 0-0 a 6-6
+    probHomeWin = Math.max(0, Math.min(100, probHomeWin));
+    probDraw = Math.max(0, Math.min(100, probDraw));
+    probAwayWin = Math.max(0, Math.min(100, probAwayWin));
+
+    const sum1X2 = probHomeWin + probDraw + probAwayWin;
+    if (sum1X2 > 0) {
+      probHomeWin = (probHomeWin / sum1X2) * 100;
+      probDraw = (probDraw / sum1X2) * 100;
+      probAwayWin = 100 - probHomeWin - probDraw; // Garantito somma esattamente 100%
+    }
+
+    // Matrice risultati da 0-0 a 6-6 normalizzata
     const scoreMatrix: number[][] = [];
     for (let h = 0; h <= 6; h++) {
       scoreMatrix[h] = [];
       for (let a = 0; a <= 6; a++) {
-        // Usiamo la probabilità calcolata
-        scoreMatrix[h][a] = calcGrid[h][a] * 100; // Memorizzata in %
+        const rawProb = calcGrid[h][a];
+        const normProb = gridProbabilityMass > 0 ? (rawProb / gridProbabilityMass) * 100 : 0;
+        scoreMatrix[h][a] = Math.max(0, Math.min(100, normProb));
       }
     }
 
-    // 8, 9, 10, 11, 12, 13. Mercati aggiuntivi (basati sulla griglia ad alta precisione)
-    let probUnder25 = 0;
-    let probOver15 = 0;
-    let probOver25 = 0;
-    let probOver35 = 0;
+    // Mercati aggiuntivi (basati sulla griglia ad alta precisione e normalizzati)
+    let rawUnder25 = 0;
+    let rawOver15 = 0;
+    let rawOver25 = 0;
+    let rawOver35 = 0;
 
     for (let h = 0; h <= CALC_LIMIT; h++) {
       for (let a = 0; a <= CALC_LIMIT; a++) {
         const sumGoals = h + a;
-        const p = calcGrid[h][a] * 100;
+        const p = calcGrid[h][a];
         if (sumGoals < 2.5) {
-          probUnder25 += p;
+          rawUnder25 += p;
         } else {
-          probOver25 += p;
+          rawOver25 += p;
         }
         if (sumGoals >= 1.5) {
-          probOver15 += p;
+          rawOver15 += p;
         }
         if (sumGoals >= 3.5) {
-          probOver35 += p;
+          rawOver35 += p;
         }
       }
     }
 
-    // Goal / No Goal
-    // Goal = Entrambe segnano almeno un gol
-    // P(Goal) = (1 - P(H=0)) * (1 - P(A=0))
+    let over15 = gridProbabilityMass > 0 ? (rawOver15 / gridProbabilityMass) * 100 : 0;
+    let over25 = gridProbabilityMass > 0 ? (rawOver25 / gridProbabilityMass) * 100 : 0;
+    let under25 = gridProbabilityMass > 0 ? (rawUnder25 / gridProbabilityMass) * 100 : 0;
+    let over35 = gridProbabilityMass > 0 ? (rawOver35 / gridProbabilityMass) * 100 : 0;
+
+    over15 = Math.max(0, Math.min(100, over15));
+    over25 = Math.max(0, Math.min(100, over25));
+    under25 = Math.max(0, Math.min(100, under25));
+    over35 = Math.max(0, Math.min(100, over35));
+
+    const sum25 = over25 + under25;
+    if (sum25 > 0) {
+      over25 = (over25 / sum25) * 100;
+      under25 = 100 - over25; // Over 2.5 + Under 2.5 = 100%
+    }
+
+    // Goal / No Goal formula analitica Poisson
     const pH0 = poissonProbability(0, homeExpectedGoals);
     const pA0 = poissonProbability(0, awayExpectedGoals);
-    const probGoal = (1 - pH0) * (1 - pA0) * 100;
-    const probNoGoal = 100 - probGoal;
+    let goal = (1 - pH0) * (1 - pA0) * 100;
+    goal = Math.max(0, Math.min(100, goal));
+    const noGoal = 100 - goal;
 
-    // 14. Cinque risultati esatti più probabili (dalla griglia 0-0 a 6-6)
+    // Cinque risultati esatti più probabili (dalla griglia 0-0 a 6-6)
     const exactScoresList: ExactScoreProb[] = [];
     for (let h = 0; h <= 6; h++) {
       for (let a = 0; a <= 6; a++) {
@@ -207,9 +275,8 @@ export const poissonModel: PredictionModel = {
     exactScoresList.sort((x, y) => y.probability - x.probability);
     const exactScores = exactScoresList.slice(0, 5);
 
-    // === SEZIONE INCERTEZZA ===
+    // === SEZIONE INCERTEZZA ED ENTROPIA ===
     // Entropia normalizzata di Shannon per la distribuzione 1-X-2
-    // p_1, p_X, p_2 come frazioni (sommano a 1.0)
     const p1 = probHomeWin / 100;
     const pX = probDraw / 100;
     const p2 = probAwayWin / 100;
@@ -219,7 +286,7 @@ export const poissonModel: PredictionModel = {
     // Normalizziamo dividendo per ln(3) che è la massima entropia possibile con 3 classi
     const entropy = entropyRaw / Math.log(3);
 
-    // Indice di incertezza da 0 a 100
+    // Indice di incertezza (Entropia degli esiti 1-X-2) da 0 a 100
     const uncertaintyIndex = Math.min(100, Math.max(0, entropy * 100));
 
     // Qualità dei dati basata sulle partite giocate:
@@ -246,9 +313,9 @@ export const poissonModel: PredictionModel = {
     const xGDiff = Math.abs(homeExpectedGoals - awayExpectedGoals);
     const parameterStability = Math.min(100, dataQuality * (0.8 + 0.2 * Math.min(1.0, xGDiff)));
 
-    // Affidabilità della stima
+    // Indice preliminare di solidità (ex reliability)
     // 50% qualità dati, 30% concentrazione, 20% stabilità dei parametri
-    const reliability = (0.5 * dataQuality) + (0.3 * concentration) + (0.2 * parameterStability);
+    const solidityIndex = (0.5 * dataQuality) + (0.3 * concentration) + (0.2 * parameterStability);
 
     // Classificazione
     let classification: 'Bassa Incertezza' | 'Incertezza Moderata' | 'Alta Incertezza' = 'Incertezza Moderata';
@@ -264,19 +331,27 @@ export const poissonModel: PredictionModel = {
       probHomeWin,
       probDraw,
       probAwayWin,
-      over15: Math.min(100, Math.max(0, probOver15)),
-      over25: Math.min(100, Math.max(0, probOver25)),
-      over35: Math.min(100, Math.max(0, probOver35)),
-      under25: Math.min(100, Math.max(0, probUnder25)),
-      goal: Math.min(100, Math.max(0, probGoal)),
-      noGoal: Math.min(100, Math.max(0, probNoGoal)),
+      over15,
+      over25,
+      over35,
+      under25,
+      goal,
+      noGoal,
       scoreMatrix,
       exactScores,
+      modelId: 'poisson-standard',
+      modelName: 'Poisson standard',
+      modelVersion: '1.1.0',
+      calculationDiagnostics: {
+        gridProbabilityMass,
+        residualProbabilityMass,
+        calculationLimit: CALC_LIMIT
+      },
       uncertainty: {
         entropy,
         uncertaintyIndex: Math.round(uncertaintyIndex * 100) / 100,
         dataQuality: Math.round(dataQuality * 100) / 100,
-        reliability: Math.round(reliability * 100) / 100,
+        solidityIndex: Math.round(solidityIndex * 100) / 100,
         classification
       }
     };
