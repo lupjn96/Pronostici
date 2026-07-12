@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Trash2, Download, Upload, Check, AlertTriangle, HelpCircle, Save, Database, Settings as SettingsIcon } from 'lucide-react';
-import { SavedPrediction } from '../types';
+import { SavedPrediction, MODEL_VERSION } from '../types';
 import { runDiagnostics, TestResult } from '../poissonEngine.validation';
 
 interface SettingsProps {
@@ -252,7 +252,7 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
         <div className="flex items-center justify-between border-b border-slate-700 pb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <SettingsIcon className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-semibold text-white">Suite di Validazione Poisson v1.1</h3>
+            <h3 className="font-semibold text-white">Suite di Validazione Poisson v{MODEL_VERSION}</h3>
           </div>
           <button
             onClick={handleRunDiag}

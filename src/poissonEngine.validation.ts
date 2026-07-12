@@ -39,17 +39,34 @@ export function runDiagnostics(): TestResult[] {
       res.goal, res.noGoal
     ].some(v => isNaN(v) || !isFinite(v));
 
-    if (!hasNaN && isCloseTo100(res.probHomeWin + res.probDraw + res.probAwayWin)) {
+    const checkTol = (val: number, expected: number): boolean => {
+      return Math.abs(val - expected) < 1e-4;
+    };
+
+    const passedAllConditions = !hasNaN &&
+      checkTol(res.homeExpectedGoals, 0) &&
+      checkTol(res.awayExpectedGoals, 0) &&
+      checkTol(res.probHomeWin, 0) &&
+      checkTol(res.probDraw, 100) &&
+      checkTol(res.probAwayWin, 0) &&
+      res.scoreMatrix && Array.isArray(res.scoreMatrix) && res.scoreMatrix[0] && checkTol(res.scoreMatrix[0][0], 100) &&
+      checkTol(res.goal, 0) &&
+      checkTol(res.noGoal, 100) &&
+      checkTol(res.over15, 0) &&
+      checkTol(res.over25, 0) &&
+      checkTol(res.under25, 100);
+
+    if (passedAllConditions) {
       results.push({
         name: 'Parametri Zero (lambda = 0)',
         passed: true,
-        message: 'Gestito correttamente. Gol attesi stabili a 0, nessuna presenza di NaN o Infinity.'
+        message: 'Gestito correttamente. Tutti i valori attesi (xG = 0, Pareggio = 100%, Under25 = 100%, NoGoal = 100%) rispettano rigorosamente le tolleranze matematiche.'
       });
     } else {
       results.push({
         name: 'Parametri Zero (lambda = 0)',
         passed: false,
-        message: `Presenza di NaN/Infinity o somma 1-X-2 non valida (${res.probHomeWin + res.probDraw + res.probAwayWin}%).`
+        message: `Mancato rispetto dei vincoli analitici con lambda = 0: xG=${res.homeExpectedGoals}/${res.awayExpectedGoals}, 1-X-2=${res.probHomeWin}/${res.probDraw}/${res.probAwayWin}, scoreMatrix[0][0]=${res.scoreMatrix?.[0]?.[0]}, Goal/NoGoal=${res.goal}/${res.noGoal}, Under/Over25=${res.under25}/${res.over25}.`
       });
     }
   } catch (err: any) {
@@ -248,6 +265,51 @@ export function runDiagnostics(): TestResult[] {
   } catch (err: any) {
     results.push({
       name: 'Coerenza Goal + No Goal = 100%',
+      passed: false,
+      message: `Errore durante l'esecuzione: ${err.message}`
+    });
+  }
+
+  // Test 7: Validità dei Diagnostici di Calcolo
+  try {
+    const inputsToTest = createSampleInputs();
+    let allPassed = true;
+    let worstError = 0;
+
+    for (const inp of inputsToTest) {
+      const res = poissonModel.calculate(inp);
+      const diag = res.calculationDiagnostics;
+      
+      const massInBounds = diag.gridProbabilityMass >= 0 && diag.gridProbabilityMass <= 1;
+      const resInBounds = diag.residualProbabilityMass >= 0 && diag.residualProbabilityMass <= 1;
+      const sum = diag.gridProbabilityMass + diag.residualProbabilityMass;
+      const diff = Math.abs(sum - 1);
+      
+      if (diff > worstError) worstError = diff;
+      
+      const isSumCorrect = diff < 1e-9;
+      
+      if (!massInBounds || !resInBounds || !isSumCorrect) {
+        allPassed = false;
+      }
+    }
+
+    if (allPassed) {
+      results.push({
+        name: 'Diagnostici del Calcolo (Massa Probabilistica)',
+        passed: true,
+        message: `Verificato con successo: la massa della griglia e la massa residua sono comprese tra 0 e 1, e la loro somma è esattamente 1 (Errore massimo di macchina: ${worstError.toExponential(4)}).`
+      });
+    } else {
+      results.push({
+        name: 'Diagnostici del Calcolo (Massa Probabilistica)',
+        passed: false,
+        message: `Mancato rispetto dei vincoli sui diagnostici. Errore massimo riscontrato sulla somma: ${worstError.toExponential(4)}.`
+      });
+    }
+  } catch (err: any) {
+    results.push({
+      name: 'Diagnostici del Calcolo (Massa Probabilistica)',
       passed: false,
       message: `Errore durante l'esecuzione: ${err.message}`
     });

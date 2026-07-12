@@ -12,8 +12,8 @@ import HistoryList from './components/HistoryList';
 import ModelComparison from './components/ModelComparison';
 import Settings from './components/Settings';
 
-import { ModelInput, PredictionResult, SavedPrediction } from './types';
-import { poissonModel } from './poissonEngine';
+import { ModelInput, PredictionResult, SavedPrediction, MODEL_VERSION } from './types';
+import { poissonModel, migrateSavedPrediction } from './poissonEngine';
 import { Sparkles, Calculator, ChevronLeft, ShieldAlert, CheckCircle } from 'lucide-react';
 
 export default function App() {
@@ -33,7 +33,18 @@ export default function App() {
     const cachedHistory = localStorage.getItem('football_lab_history');
     if (cachedHistory) {
       try {
-        setHistory(JSON.parse(cachedHistory));
+        const parsed = JSON.parse(cachedHistory);
+        if (Array.isArray(parsed)) {
+          const migrated = parsed.map(pred => {
+            try {
+              return migrateSavedPrediction(pred);
+            } catch (e) {
+              console.error('Errore di migrazione di un record', e);
+              return null;
+            }
+          }).filter((item): item is SavedPrediction => item !== null);
+          setHistory(migrated);
+        }
       } catch (e) {
         console.error('Errore nel caricamento dello storico', e);
       }
@@ -91,20 +102,22 @@ export default function App() {
   };
 
   // Importazione dati JSON esterni
-  const handleImportHistory = (imported: SavedPrediction[]): boolean => {
-    // Validazione base della struttura dati
-    const isValid = imported.every((item) => {
-      return (
-        item.id &&
-        item.dateTime &&
-        item.input?.homeTeam &&
-        item.input?.awayTeam &&
-        item.result?.probHomeWin !== undefined
-      );
-    });
+  const handleImportHistory = (imported: any[]): boolean => {
+    if (!Array.isArray(imported)) return false;
 
-    if (isValid) {
-      const merged = [...imported, ...history];
+    try {
+      const migrated = imported.map((item) => {
+        try {
+          return migrateSavedPrediction(item);
+        } catch (e) {
+          console.error('Errore nella migrazione dell’importazione', e);
+          return null;
+        }
+      }).filter((item): item is SavedPrediction => item !== null);
+
+      if (migrated.length === 0) return false;
+
+      const merged = [...migrated, ...history];
       // Rimuoviamo duplicati ID
       const uniqueMap = new Map();
       merged.forEach((item) => uniqueMap.set(item.id, item));
@@ -117,17 +130,25 @@ export default function App() {
       localStorage.setItem('football_lab_history', JSON.stringify(uniqueList));
       showToast('Importazione completata con successo!');
       return true;
+    } catch (err) {
+      console.error('Errore generico durante importazione', err);
+      return false;
     }
-    return false;
   };
 
   // Apertura di una previsione salvata dallo storico o dalla dashboard
   const handleOpenSaved = (saved: SavedPrediction) => {
-    setActiveInput(saved.input);
-    setActiveResult(saved.result);
-    setPredictionView('results');
-    setSection('prediction');
-    showToast(`Caricato studio: ${saved.input.homeTeam} vs ${saved.input.awayTeam}`);
+    try {
+      const migrated = migrateSavedPrediction(saved);
+      setActiveInput(migrated.input);
+      setActiveResult(migrated.result);
+      setPredictionView('results');
+      setSection('prediction');
+      showToast(`Caricato studio: ${migrated.input.homeTeam} vs ${migrated.input.awayTeam}`);
+    } catch (e) {
+      console.error('Errore durante caricamento record', e);
+      showToast('Impossibile aprire il record: dati non validi', 'error');
+    }
   };
 
   // Precompila con dati Demo (andando alla scheda Previsione, lasciandola in modalità form)
@@ -142,7 +163,7 @@ export default function App() {
       leagueHomeScoredAvg: 1.40,
       leagueAwayScoredAvg: 1.10,
       matchesPlayed: 12,
-      homeAdvantage: 12
+      homeAdvantage: 0
     };
     setActiveInput(demoInput);
     setActiveResult(null); // non calcoliamo automaticamente!
@@ -171,7 +192,7 @@ export default function App() {
             </h1>
           </div>
           <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-            Poisson v1.0
+            Poisson v{MODEL_VERSION}
           </span>
         </div>
 

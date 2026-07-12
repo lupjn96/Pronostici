@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export const MODEL_VERSION = '1.1.0';
+
 export interface ModelInput {
   homeTeam: string;
   awayTeam: string;

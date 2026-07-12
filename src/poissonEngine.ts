@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel } from './types';
+import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPrediction } from './types';
 
 // 1. Funzione fattoriale
 export function factorial(n: number): number {
@@ -112,7 +112,7 @@ export function validateInput(input: ModelInput): ValidationResult {
 export const poissonModel: PredictionModel = {
   id: 'poisson-standard',
   name: 'Poisson standard',
-  description: 'Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche offensive e difensive dei team, pesate per le medie del campionato e il vantaggio casalingo.',
+  description: 'Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche offensive e difensive dei team, pesate per le medie del campionato e l\'eventuale correzione manuale casa.',
   status: 'active',
   calculate: (input: ModelInput): PredictionResult => {
     // 3. Calcolo dei gol attesi casa e ospite
@@ -357,3 +357,77 @@ export const poissonModel: PredictionModel = {
     };
   }
 };
+
+export function migrateSavedPrediction(pred: any): SavedPrediction {
+  if (!pred || typeof pred !== 'object') {
+    throw new Error('Record non valido');
+  }
+
+  const id = pred.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 9));
+  const dateTime = pred.dateTime || new Date().toISOString();
+
+  // Input data mapping
+  const input: ModelInput = {
+    homeTeam: pred.input?.homeTeam || 'Sconosciuta',
+    awayTeam: pred.input?.awayTeam || 'Sconosciuta',
+    homeScoredAvg: Number(pred.input?.homeScoredAvg) || 0,
+    homeConcededAvg: Number(pred.input?.homeConcededAvg) || 0,
+    awayScoredAvg: Number(pred.input?.awayScoredAvg) || 0,
+    awayConcededAvg: Number(pred.input?.awayConcededAvg) || 0,
+    leagueHomeScoredAvg: Number(pred.input?.leagueHomeScoredAvg) || 1.4,
+    leagueAwayScoredAvg: Number(pred.input?.leagueAwayScoredAvg) || 1.1,
+    matchesPlayed: Number(pred.input?.matchesPlayed) || 15,
+    homeAdvantage: Number(pred.input?.homeAdvantage) || 0
+  };
+
+  // Result data mapping
+  const rawResult = pred.result || {};
+  const uncertainty = rawResult.uncertainty || {};
+
+  // Resolve solidityIndex or reliability
+  let solidityIndex = 0;
+  if (uncertainty.solidityIndex !== undefined) {
+    solidityIndex = Number(uncertainty.solidityIndex);
+  } else if (uncertainty.reliability !== undefined) {
+    solidityIndex = Number(uncertainty.reliability);
+  }
+
+  const result: PredictionResult = {
+    homeExpectedGoals: Number(rawResult.homeExpectedGoals) || 0,
+    awayExpectedGoals: Number(rawResult.awayExpectedGoals) || 0,
+    probHomeWin: Number(rawResult.probHomeWin) || 0,
+    probDraw: Number(rawResult.probDraw) || 0,
+    probAwayWin: Number(rawResult.probAwayWin) || 0,
+    over15: Number(rawResult.over15) || 0,
+    over25: Number(rawResult.over25) || 0,
+    over35: Number(rawResult.over35) || 0,
+    under25: Number(rawResult.under25) || 0,
+    goal: Number(rawResult.goal) || 0,
+    noGoal: Number(rawResult.noGoal) || 0,
+    scoreMatrix: Array.isArray(rawResult.scoreMatrix) ? rawResult.scoreMatrix : Array(7).fill(0).map(() => Array(7).fill(0)),
+    exactScores: Array.isArray(rawResult.exactScores) ? rawResult.exactScores : [],
+    modelId: rawResult.modelId || 'poisson-standard',
+    modelName: rawResult.modelName || 'Poisson standard',
+    modelVersion: rawResult.modelVersion || '1.0.0',
+    calculationDiagnostics: {
+      gridProbabilityMass: rawResult.calculationDiagnostics?.gridProbabilityMass !== undefined ? Number(rawResult.calculationDiagnostics.gridProbabilityMass) : 1,
+      residualProbabilityMass: rawResult.calculationDiagnostics?.residualProbabilityMass !== undefined ? Number(rawResult.calculationDiagnostics.residualProbabilityMass) : 0,
+      calculationLimit: rawResult.calculationDiagnostics?.calculationLimit !== undefined ? Number(rawResult.calculationDiagnostics.calculationLimit) : 12,
+    },
+    uncertainty: {
+      entropy: Number(uncertainty.entropy) || 0,
+      uncertaintyIndex: Number(uncertainty.uncertaintyIndex) || 0,
+      dataQuality: Number(uncertainty.dataQuality) || 0,
+      solidityIndex: solidityIndex,
+      classification: uncertainty.classification || 'Incertezza Moderata'
+    }
+  };
+
+  return {
+    id,
+    dateTime,
+    input,
+    result
+  };
+}
+

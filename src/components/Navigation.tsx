@@ -4,6 +4,7 @@
  */
 
 import { LayoutDashboard, Calculator, History, GitCompare, Settings, ShieldAlert } from 'lucide-react';
+import { MODEL_VERSION } from '../types';
 
 interface NavigationProps {
   currentSection: string;
@@ -31,7 +32,7 @@ export default function Navigation({ currentSection, setSection }: NavigationPro
             </h1>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-            Prediction Engine v1.0
+            Prediction Engine v{MODEL_VERSION}
           </span>
         </div>
 
