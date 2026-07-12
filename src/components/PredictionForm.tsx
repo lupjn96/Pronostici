@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { ModelInput } from '../types';
 import { validateInput } from '../poissonEngine';
-import { HelpCircle, AlertTriangle, Play, Sparkles } from 'lucide-react';
+import { HelpCircle, AlertTriangle, Play, Sparkles, Info } from 'lucide-react';
 
 interface PredictionFormProps {
   onCalculate: (input: ModelInput, modelId: string) => void;
@@ -176,7 +176,7 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
           <button
             type="button"
             onClick={() => setSelectedModelId('poisson-gamma')}
-            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between h-28 cursor-pointer ${
+            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[7rem] h-auto cursor-pointer ${
               selectedModelId === 'poisson-gamma'
                 ? 'border-emerald-500/40 bg-slate-800/40 ring-1 ring-emerald-500/10'
                 : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'
@@ -184,10 +184,10 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
           >
             <div>
               <span className={`block text-xs font-bold ${selectedModelId === 'poisson-gamma' ? 'text-emerald-400' : 'text-slate-300'}`}>
-                Poisson-Gamma Bayesiano v0.1
+                Poisson-Gamma Empirico v0.1.0
               </span>
               <span className="text-[10px] text-slate-400 mt-1 block leading-normal">
-                Modella i gol con un a-priori Gamma per catturare l'incertezza epistemica dovuta a dati ridotti.
+                Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente in funzione del numero di partite disponibili.
               </span>
             </div>
             <div className="flex items-center gap-1.5 self-end mt-2">
@@ -196,6 +196,15 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
             </div>
           </button>
         </div>
+
+        {selectedModelId === 'poisson-gamma' && (
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-slate-300 leading-normal flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+            <span>
+              Questa versione stima l’incertezza di lambda in modo empirico sulla base del numero di partite. Non utilizza ancora un vero aggiornamento bayesiano basato sui gol osservati.
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700 space-y-5">

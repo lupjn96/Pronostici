@@ -35,18 +35,30 @@ export function runPoissonGammaValidation(): TestResult[] {
     };
 
     const resA = poissonGammaModel.calculate(inputA);
-    const isDegenerateHome = resA.exactScores[0].score === '0-0' && resA.scoreMatrix[0][0] > 99.9;
-    const hasNaNOrInf = [
-      resA.probHomeWin, resA.probDraw, resA.probAwayWin,
-      resA.over15, resA.over25, resA.under25, resA.goal, resA.noGoal
-    ].some(val => isNaN(val) || !isFinite(val));
+    const tol = 0.0001;
+    const checkTol = (val: number, expected: number) => Math.abs(val - expected) < tol;
+
+    const condHomeXG = checkTol(resA.homeExpectedGoals, 0);
+    const condAwayXG = checkTol(resA.awayExpectedGoals, 0);
+    const condHomeWin = checkTol(resA.probHomeWin, 0);
+    const condDraw = checkTol(resA.probDraw, 100);
+    const condAwayWin = checkTol(resA.probAwayWin, 0);
+    const condMatrix00 = checkTol(resA.scoreMatrix[0][0], 100);
+    const condGoal = checkTol(resA.goal, 0);
+    const condNoGoal = checkTol(resA.noGoal, 100);
+    const condOver15 = checkTol(resA.over15, 0);
+    const condOver25 = checkTol(resA.over25, 0);
+    const condUnder25 = checkTol(resA.under25, 100);
+
+    const testAPassed = condHomeXG && condAwayXG && condHomeWin && condDraw && condAwayWin &&
+                        condMatrix00 && condGoal && condNoGoal && condOver15 && condOver25 && condUnder25;
 
     results.push({
       name: 'Test A: Corner Case lambda = 0',
-      passed: isDegenerateHome && !hasNaNOrInf,
-      message: isDegenerateHome && !hasNaNOrInf
-        ? 'Success: Zero goals model produces degenerate 0-0 distribution without NaN/Infinity.'
-        : 'Failure: Zero goals did not produce correct 0-0 distribution or produced NaN/Infinity.'
+      passed: testAPassed,
+      message: testAPassed
+        ? 'Success: Zero goals model produces degenerate 0-0 distribution and matches exact requirements with tolerance 0.0001.'
+        : `Failure: Zero goals values mismatch requirements. Details - homeXG: ${resA.homeExpectedGoals}, awayXG: ${resA.awayExpectedGoals}, homeWin: ${resA.probHomeWin}, draw: ${resA.probDraw}, awayWin: ${resA.probAwayWin}, matrix00: ${resA.scoreMatrix[0][0]}, goal: ${resA.goal}, noGoal: ${resA.noGoal}, over15: ${resA.over15}, over25: ${resA.over25}, under25: ${resA.under25}`
     });
   } catch (err: any) {
     results.push({
@@ -158,18 +170,26 @@ export function runPoissonGammaValidation(): TestResult[] {
     const resD = poissonGammaModel.calculate(inputD);
 
     const sum1X2 = resD.probHomeWin + resD.probDraw + resD.probAwayWin;
-    const isSum1X2Correct = Math.abs(sum1X2 - 100) < 1e-9;
+    const isSum1X2Correct = Math.abs(sum1X2 - 100) < 0.0001;
+
+    const sumOverUnder = resD.over25 + resD.under25;
+    const isSumOverUnderCorrect = Math.abs(sumOverUnder - 100) < 0.0001;
+
+    const sumGoalNoGoal = resD.goal + resD.noGoal;
+    const isSumGoalNoGoalCorrect = Math.abs(sumGoalNoGoal - 100) < 0.0001;
 
     const mass = resD.calculationDiagnostics?.gridProbabilityMass ?? 0;
     const residual = resD.calculationDiagnostics?.residualProbabilityMass ?? 0;
-    const isTotalMassOne = Math.abs(mass + residual - 1) < 1e-9;
+    const isTotalMassOne = Math.abs(mass + residual - 1) < 0.0001;
+
+    const testDPassed = isSum1X2Correct && isSumOverUnderCorrect && isSumGoalNoGoalCorrect && isTotalMassOne;
 
     results.push({
       name: 'Test D: Grid Probability Mass and Exact 100% Normalized Sum',
-      passed: isSum1X2Correct && isTotalMassOne,
-      message: isSum1X2Correct && isTotalMassOne
-        ? `Success: 1X2 sums to exactly ${sum1X2.toFixed(4)}% and Total Grid Mass + Residual = ${(mass + residual).toFixed(4)}.`
-        : `Failure: 1X2 Sum is ${sum1X2.toFixed(4)}% or Mass + Residual is ${(mass + residual).toFixed(4)}.`
+      passed: testDPassed,
+      message: testDPassed
+        ? `Success: 1X2 sums to ${sum1X2.toFixed(4)}%, Over/Under sums to ${sumOverUnder.toFixed(4)}%, Goal/NoGoal sums to ${sumGoalNoGoal.toFixed(4)}%, and Total Grid Mass + Residual = ${(mass + residual).toFixed(4)}.`
+        : `Failure: Mismatch found. 1X2 Sum: ${sum1X2.toFixed(4)}% (expected 100), Over/Under Sum: ${sumOverUnder.toFixed(4)}% (expected 100), Goal/NoGoal Sum: ${sumGoalNoGoal.toFixed(4)}% (expected 100), Mass+Residual: ${(mass + residual).toFixed(4)} (expected 1).`
     });
   } catch (err: any) {
     results.push({
@@ -196,17 +216,42 @@ export function runPoissonGammaValidation(): TestResult[] {
 
     const resHigh = poissonGammaModel.calculate(inputHigh);
 
-    const hasNaNOrInfHigh = [
-      resHigh.probHomeWin, resHigh.probDraw, resHigh.probAwayWin,
-      resHigh.over15, resHigh.over25, resHigh.under25, resHigh.goal, resHigh.noGoal
-    ].some(val => isNaN(val) || !isFinite(val));
+    const isValidPct = (val: number | undefined): boolean => {
+      if (val === undefined) return false;
+      return !isNaN(val) && isFinite(val) && val >= 0 && val <= 100;
+    };
+
+    const isValidMass = (val: number | undefined): boolean => {
+      if (val === undefined) return false;
+      return !isNaN(val) && isFinite(val) && val >= 0 && val <= 1;
+    };
+
+    const check1 = isValidPct(resHigh.probHomeWin);
+    const check2 = isValidPct(resHigh.probDraw);
+    const check3 = isValidPct(resHigh.probAwayWin);
+    const check4 = isValidPct(resHigh.over15);
+    const check5 = isValidPct(resHigh.over25);
+    const check6 = isValidPct(resHigh.over35);
+    const check7 = isValidPct(resHigh.under25);
+    const check8 = isValidPct(resHigh.goal);
+    const check9 = isValidPct(resHigh.noGoal);
+    const check10 = isValidPct(resHigh.uncertainty.uncertaintyIndex);
+    const check11 = isValidPct(resHigh.uncertainty.solidityIndex);
+    const check12 = isValidPct(resHigh.parameterUncertainty?.epistemicIndex);
+    const check13 = isValidPct(resHigh.totalUncertaintyIndex);
+
+    const checkMass1 = isValidMass(resHigh.calculationDiagnostics?.gridProbabilityMass);
+    const checkMass2 = isValidMass(resHigh.calculationDiagnostics?.residualProbabilityMass);
+
+    const testEPassed = check1 && check2 && check3 && check4 && check5 && check6 && check7 && check8 && check9 &&
+                        check10 && check11 && check12 && check13 && checkMass1 && checkMass2;
 
     results.push({
       name: 'Test E: NaN and Infinity Safety with Extreme Inputs',
-      passed: !hasNaNOrInfHigh,
-      message: !hasNaNOrInfHigh
-        ? 'Success: Model operates safely and yields valid numerical outputs under extreme inputs without NaN or Infinity.'
-        : 'Failure: Extreme inputs caused NaN or Infinity values.'
+      passed: testEPassed,
+      message: testEPassed
+        ? 'Success: Model operates safely and yields valid numerical outputs under extreme inputs without NaN or Infinity, and all requested metrics are within range [0, 100] or [0, 1].'
+        : `Failure: Extreme inputs caused validation failure or values out of bounds. Details - probHomeWin: ${resHigh.probHomeWin}, probDraw: ${resHigh.probDraw}, probAwayWin: ${resHigh.probAwayWin}, over15: ${resHigh.over15}, over25: ${resHigh.over25}, over35: ${resHigh.over35}, under25: ${resHigh.under25}, goal: ${resHigh.goal}, noGoal: ${resHigh.noGoal}, uncertaintyIndex: ${resHigh.uncertainty.uncertaintyIndex}, solidityIndex: ${resHigh.uncertainty.solidityIndex}, epistemicIndex: ${resHigh.parameterUncertainty?.epistemicIndex}, totalUncertaintyIndex: ${resHigh.totalUncertaintyIndex}, gridMass: ${resHigh.calculationDiagnostics?.gridProbabilityMass}, residualMass: ${resHigh.calculationDiagnostics?.residualProbabilityMass}`
     });
   } catch (err: any) {
     results.push({

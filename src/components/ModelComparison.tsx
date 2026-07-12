@@ -20,10 +20,10 @@ export default function ModelComparison() {
     },
     {
       id: 'poisson_gamma',
-      name: 'Poisson-Gamma Bayesiano v0.1.0',
-      description: 'Modello bayesiano che non considera lambda come un valore perfettamente noto, ma come un parametro incerto regolato da una distribuzione Gamma a-priori. Fornisce l’analisi dell’incertezza dei parametri e dell’incertezza epistemica usando probabilità predittive calcolate tramite Binomiale Negativa.',
+      name: 'Poisson-Gamma Empirico v0.1.0',
+      description: 'Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente in funzione del numero di partite disponibili.',
       status: 'attivo',
-      type: 'Bayesiano',
+      type: 'Statistico Bayesiano',
       complexity: 'Alta',
       strength: 'Modella l’incertezza dovuta alla limitata quantità di dati (partite giocate) e previene la sovradispersione.',
       icon: Code,

@@ -57,8 +57,8 @@ export function negativeBinomialPredictiveProbability(k: number, shape: number, 
 
 export const poissonGammaModel: PredictionModel = {
   id: 'poisson-gamma',
-  name: 'Poisson-Gamma Bayesiano',
-  description: 'Modella la stima dei gol tramite un a-priori coniugato Gamma. Consente di catturare l\'incertezza epistemica derivante dal numero limitato di partite giocate, producendo distribuzioni predittive più diffuse per campioni piccoli.',
+  name: 'Poisson-Gamma Empirico',
+  description: 'Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente in funzione del numero di partite disponibili.',
   status: 'active',
   calculate: (input: ModelInput): PredictionResult => {
     // Calcolo dei gol attesi (media lambda stimata come Poisson standard)
@@ -322,7 +322,7 @@ export const poissonGammaModel: PredictionModel = {
       scoreMatrix,
       exactScores,
       modelId: 'poisson-gamma',
-      modelName: 'Poisson-Gamma Bayesiano',
+      modelName: 'Poisson-Gamma Empirico',
       modelVersion: '0.1.0',
       calculationDiagnostics: {
         gridProbabilityMass,
