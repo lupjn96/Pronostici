@@ -24,20 +24,27 @@ Questo documento descrive l'architettura, le fasi evolutive e gli obiettivi futu
 - **Fattore Correttivo tau()**: Introduzione della funzione di correzione $\tau$ applicata ai risultati esatti 0-0, 1-0, 0-1, 1-1, mentre i risultati ad alto punteggio mantengono la logica di Poisson classica.
 - **Integrità e Validazione**: Aggiunta di una suite di test specifica in `dixonColes.validation.ts` integrata nella pagina diagnostica di sistema per garantire che le probabilità sommino al 100%, la massa di probabilità sia corretta e stabile, e che le deviazioni sui punteggi alti rispetto a Poisson siano trascurabili.
 
+### Fase 4: Historical Football Data Collector (Completato)
+- **Importazione e Parsing CSV**: Parser CSV nativo estremamente robusto a carattere-per-carattere in grado di riconoscere virgole, punti e virgole, tab, BOM UTF-8, stringhe con virgolette nidificate e con normalizzazione delle virgole decimali italiane.
+- **Alias Colonne e Case-Insensitivity**: Riconoscimento flessibile delle intestazioni di colonna tramite un motore di alias intelligente per identificare data, competizione, squadre, gol, tiri, angoli, cartellini, xG e quote.
+- **Validazione Rigorosa e Prevenzione Errori**: Meccanismo a due livelli (errori bloccanti per i campi obbligatori; warning con declassamento a `undefined` per i campi opzionali non validi) per garantire un caricamento pulito.
+- **Persistenza Avanzata con IndexedDB**: Repository asincrono completo per salvare in modo performante datasets e partite storiche su database IndexedDB locale nel browser, bypassando i limiti di localStorage.
+- **Calcolatore delle Feature Storiche e Antileakage**: Estrattore statistico puro per calcolare le medie gol della squadra in casa, squadra ospite e medie campionato nel passato, escludendo rigorosamente eventi futuri rispetto alla data del match simulato per evitare data leakage. Supporto opzionale per decadimento temporale (Time Decay) e finestre mobili (Rolling Windows).
+- **Test Diagnostici Completi**: Suite di test (TEST A - I) integrata in `DataCollector.validation.ts` per convalidare tutti i flussi e accessibile direttamente dall'interfaccia delle Impostazioni.
+
 ---
 
 ## Roadmap delle Fasi Future
 
-### Fase 4: Integrazione di Fonti Esterne (API & Database)
+### Fase 5: Integrazione di Fonti Esterne Automatizzate (API & Scraping)
 - **Integrazione API Sportive**: Collegamento automatico a provider di dati (es. API-Football, Football-Data.org) per popolare automaticamente le medie storiche dei team in base al campionato selezionato.
-- **Integrazione Database (Cloud SQL/PostgreSQL)**: Persistenza centralizzata delle partite giocate, campionati e statistiche di squadre storiche per consentire calcoli su grandi moli di dati.
-- **Web Scraping & CSV Import**: Funzionalità avanzate per caricare file storici di statistiche in formato CSV o recuperare classifiche tramite scraping sicuro.
+- **Web Scraping & Live Quotes**: Funzionalità avanzate per recuperare classifiche e quote di mercato in tempo reale tramite scraping o widget integrati.
 
-### Fase 5: Modellazione Matematica Avanzata
+### Fase 6: Modellazione Matematica Avanzata & Machine Learning
 - **Metriche xG (Expected Goals)**: Supporto nativo per metriche di Expected Goals di alta precisione basate sui tiri, differenziando i gol reali dalla qualità delle occasioni create.
-- **Modellazione Temporale (Decadimento del Tempo)**: Applicazione di pesi decrescenti nel tempo (time-decay) per dare maggiore importanza alle partite più recenti rispetto all'inizio del campionato.
+- **Ensemble Engine**: Integrazione di classificatori di Machine Learning e reti neurali leggeri per combinare i modelli Poisson, Dixon-Coles ed Elo in un unico previsore combinato.
 
-### Fase 6: Integrazione delle Quote e Value Betting
+### Fase 7: Integrazione delle Quote e Value Betting
 - **Confronto con le Quote dei Bookmaker**: Caricamento in tempo reale delle quote di mercato (1-X-2, Under/Over, Goal/NoGoal) tramite API o manuale.
 - **Value Bet Finder**: Algoritmo automatico che identifica le "scommesse di valore" confrontando le probabilità stimate dai modelli interni del Lab con le probabilità implicite dei bookmaker:
   $$\text{Value} = (\text{Probabilità Stimata} \times \text{Quota}) - 100\%$$

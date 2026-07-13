@@ -12,6 +12,7 @@ import HistoryList from './components/HistoryList';
 import ModelComparison from './components/ModelComparison';
 import Settings from './components/Settings';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
+import DataCollectorDashboard from './components/DataCollectorDashboard';
 
 import { ModelInput, PredictionResult, SavedPrediction, ActualMatchResult, MODEL_VERSION } from './types';
 import { getOutcome, evaluatePrediction } from './performance/PerformanceEngine';
@@ -344,6 +345,8 @@ export default function App() {
         )}
 
         {section === 'models' && <ModelComparison />}
+
+        {section === 'datacollector' && <DataCollectorDashboard />}
 
         {section === 'settings' && (
           <Settings
