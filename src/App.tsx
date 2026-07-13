@@ -26,6 +26,7 @@ export default function App() {
   const [activeResult, setActiveResult] = useState<PredictionResult | null>(null);
   const [activeModelId, setActiveModelId] = useState<string>('poisson-standard');
   const [predictionView, setPredictionView] = useState<'form' | 'results'>('form');
+  const [activePredictionId, setActivePredictionId] = useState<string | null>(null);
 
   // Stato per notifica toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -82,6 +83,7 @@ export default function App() {
       const updatedHistory = [newSaved, ...history];
       setHistory(updatedHistory);
       localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
+      setActivePredictionId(newSaved.id);
 
       showToast(`Previsione calcolata con ${model.name}!`);
     } catch (err) {
@@ -92,17 +94,34 @@ export default function App() {
 
   // Eliminazione di una singola previsione
   const handleDeletePrediction = (id: string) => {
-    const updatedHistory = history.filter((p) => p.id !== id);
-    setHistory(updatedHistory);
-    localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
-    showToast('Studio eliminato con successo!');
+    setHistory(previousHistory => {
+      const updatedHistory = previousHistory.filter(item => item.id !== id);
+      localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
+      return updatedHistory;
+    });
+
+    if (activePredictionId === id) {
+      setActiveResult(null);
+      setActiveInput(undefined);
+      setPredictionView('form');
+      setActivePredictionId(null);
+    }
+
+    showToast('Pronostico eliminato con successo.');
   };
 
   // Pulizia totale storico
   const handleClearHistory = () => {
     setHistory([]);
     localStorage.removeItem('football_lab_history');
-    showToast('Tutto lo storico è stato cancellato definitivamente!');
+    
+    // Chiudi eventuali pronostici attualmente aperti
+    setActiveResult(null);
+    setActiveInput(undefined);
+    setPredictionView('form');
+    setActivePredictionId(null);
+
+    showToast('Tutti i pronostici sono stati eliminati.');
   };
 
   // Importazione dati JSON esterni
@@ -147,6 +166,7 @@ export default function App() {
       setActiveInput(migrated.input);
       setActiveResult(migrated.result);
       setActiveModelId(migrated.result.modelId || 'poisson-standard');
+      setActivePredictionId(migrated.id);
       setPredictionView('results');
       setSection('prediction');
       showToast(`Caricato studio: ${migrated.input.homeTeam} vs ${migrated.input.awayTeam}`);
@@ -253,6 +273,7 @@ export default function App() {
             predictions={history}
             onDelete={handleDeletePrediction}
             onOpen={handleOpenSaved}
+            onClearAll={handleClearHistory}
           />
         )}
 

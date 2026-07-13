@@ -11,10 +11,13 @@ interface HistoryListProps {
   predictions: SavedPrediction[];
   onDelete: (id: string) => void;
   onOpen: (prediction: SavedPrediction) => void;
+  onClearAll?: () => void;
 }
 
-export default function HistoryList({ predictions, onDelete, onOpen }: HistoryListProps) {
+export default function HistoryList({ predictions, onDelete, onOpen, onClearAll }: HistoryListProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
 
   const formatComma = (val: number, decimals: number = 2) => {
     return val.toFixed(decimals).replace('.', ',');
@@ -47,11 +50,22 @@ export default function HistoryList({ predictions, onDelete, onOpen }: HistoryLi
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-700 pb-5">
-        <h2 className="text-2xl font-bold font-sans text-white">Storico Previsioni</h2>
-        <p className="text-slate-400 mt-1 text-sm">
-          Sfoglia e ricarica i calcoli salvati localmente sul tuo dispositivo.
-        </p>
+      <div className="border-b border-slate-700 pb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold font-sans text-white">Storico Previsioni</h2>
+          <p className="text-slate-400 mt-1 text-sm">
+            Sfoglia e ricarica i calcoli salvati localmente sul tuo dispositivo.
+          </p>
+        </div>
+        {predictions.length > 0 && (
+          <button
+            onClick={() => setShowClearAllConfirm(true)}
+            className="py-2.5 px-4 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 text-rose-400 rounded-lg transition-all flex items-center justify-center gap-2 text-xs border border-rose-500/20 font-semibold cursor-pointer shrink-0 self-start md:self-auto min-h-[40px]"
+          >
+            <Trash2 className="w-4 h-4 shrink-0" />
+            <span>Elimina tutte le prove</span>
+          </button>
+        )}
       </div>
 
       {/* Barra di ricerca */}
@@ -161,29 +175,109 @@ export default function HistoryList({ predictions, onDelete, onOpen }: HistoryLi
                 </div>
 
                 {/* Parte destra: Pulsanti azione */}
-                <div className="flex items-center gap-2 border-t border-slate-700/50 pt-4 md:pt-0 md:border-t-0 md:pl-4 justify-end shrink-0">
+                <div className="flex items-center gap-2 border-t border-slate-700/50 pt-4 md:pt-0 md:border-t-0 md:pl-4 justify-end shrink-0 w-full md:w-auto">
                   <button
-                    onClick={() => onOpen(pred)}
-                    className="flex-1 md:flex-none p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-md transition-all flex items-center justify-center gap-1.5 text-xs border border-slate-700 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(pred);
+                    }}
+                    className="flex-1 md:flex-none py-3 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 rounded-lg transition-all flex items-center justify-center gap-2 text-xs border border-slate-700 cursor-pointer min-h-[44px]"
                     title="Vedi Analisi"
                   >
-                    <Eye className="w-4 h-4" /> Apri
+                    <Eye className="w-4 h-4 shrink-0" />
+                    <span>Apri</span>
                   </button>
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Sei sicuro di voler eliminare definitivamente lo studio di ${pred.input.homeTeam} vs ${pred.input.awayTeam}?`)) {
-                        onDelete(pred.id);
-                      }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteId(pred.id);
                     }}
-                    className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-md transition-all flex items-center justify-center border border-rose-500/20 cursor-pointer"
+                    className="flex-1 md:flex-none py-3 px-4 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 text-rose-400 rounded-lg transition-all flex items-center justify-center gap-2 text-xs border border-rose-500/20 cursor-pointer min-h-[44px]"
                     title="Elimina"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    <span>Elimina</span>
                   </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal di conferma eliminazione singola */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" id="delete-confirmation-modal">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5" id="delete-confirmation-content">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Elimina pronostico</h3>
+            </div>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              Vuoi davvero eliminare questo pronostico? L’operazione non può essere annullata.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteId) {
+                    onDelete(deleteId);
+                    setDeleteId(null);
+                  }
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition-all shadow-lg shadow-rose-600/10 cursor-pointer"
+              >
+                Elimina definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal di conferma eliminazione totale */}
+      {showClearAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" id="clear-all-confirmation-modal">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5" id="clear-all-confirmation-content">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Elimina tutti i pronostici</h3>
+            </div>
+            <p className="text-slate-300 text-sm leading-relaxed">
+              Stai per eliminare tutti i pronostici salvati. Questa operazione non può essere annullata.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearAllConfirm(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClearAll) {
+                    onClearAll();
+                  }
+                  setShowClearAllConfirm(false);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition-all shadow-lg shadow-rose-600/10 cursor-pointer"
+              >
+                Elimina definitivamente
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
