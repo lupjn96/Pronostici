@@ -1,8 +1,8 @@
-import { HistoricalMatch, HistoricalDataset, HistoricalDatasetMetadata } from './HistoricalMatchTypes';
+import { HistoricalMatch, HistoricalDataset, HistoricalDatasetMetadata, HistoricalDiagnostics } from './HistoricalMatchTypes';
 import { normalizedTeamKey } from './HistoricalMatchValidator';
 
 const DB_NAME = 'football_prediction_lab';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /**
  * Apre una connessione al database IndexedDB in modo asincrono.
@@ -17,16 +17,70 @@ function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event) => {
       const db = request.result;
+      const transaction = request.transaction!;
+
       if (!db.objectStoreNames.contains('historical_datasets')) {
         db.createObjectStore('historical_datasets', { keyPath: 'id' });
       }
+
+      let matchStore: IDBObjectStore;
       if (!db.objectStoreNames.contains('historical_matches')) {
-        const matchStore = db.createObjectStore('historical_matches', { keyPath: 'id' });
+        matchStore = db.createObjectStore('historical_matches', { keyPath: 'id' });
+      } else {
+        matchStore = transaction.objectStore('historical_matches');
+      }
+
+      // Crea indici se non esistono
+      if (!matchStore.indexNames.contains('datasetId')) {
         matchStore.createIndex('datasetId', 'datasetId', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('competition')) {
         matchStore.createIndex('competition', 'competition', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('homeTeam')) {
         matchStore.createIndex('homeTeam', 'homeTeam', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('awayTeam')) {
         matchStore.createIndex('awayTeam', 'awayTeam', { unique: false });
       }
+      if (!matchStore.indexNames.contains('date')) {
+        matchStore.createIndex('date', 'date', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('competitionKey')) {
+        matchStore.createIndex('competitionKey', 'competitionKey', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('homeTeamKey')) {
+        matchStore.createIndex('homeTeamKey', 'homeTeamKey', { unique: false });
+      }
+      if (!matchStore.indexNames.contains('awayTeamKey')) {
+        matchStore.createIndex('awayTeamKey', 'awayTeamKey', { unique: false });
+      }
+
+      // Migrazione automatica dei vecchi record
+      const cursorReq = matchStore.openCursor();
+      cursorReq.onsuccess = (e: any) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const match = cursor.value;
+          let updated = false;
+          if (!match.competitionKey) {
+            match.competitionKey = normalizedTeamKey(match.competition);
+            updated = true;
+          }
+          if (!match.homeTeamKey) {
+            match.homeTeamKey = normalizedTeamKey(match.homeTeam);
+            updated = true;
+          }
+          if (!match.awayTeamKey) {
+            match.awayTeamKey = normalizedTeamKey(match.awayTeam);
+            updated = true;
+          }
+          if (updated) {
+            cursor.update(match);
+          }
+          cursor.continue();
+        }
+      };
     };
 
     request.onsuccess = () => resolve(request.result);
@@ -317,62 +371,76 @@ export interface MatchesPageFilters {
 
 /**
  * Recupera una pagina di partite storiche filtrate.
+ * Utilizza indici e cursori per limitare al minimo la lettura dei record da IndexedDB.
  */
 export async function getMatchesPage(filters: MatchesPageFilters): Promise<HistoricalMatch[]> {
   const db = await openDB();
   const { page, pageSize, team, competition, date } = filters;
   
   const normTeam = team ? normalizedTeamKey(team) : '';
-  const normComp = competition ? competition.toLowerCase().trim() : '';
+  const normComp = competition ? normalizedTeamKey(competition) : '';
   const targetDate = date ? date.trim() : '';
+
+  const startIndex = (page - 1) * pageSize;
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('historical_matches', 'readonly');
     const store = transaction.objectStore('historical_matches');
+    
+    let request: IDBRequest<IDBCursorWithValue | null>;
+    if (store.indexNames.contains('date')) {
+      const index = store.index('date');
+      request = index.openCursor(null, 'prev');
+    } else {
+      request = store.openCursor(null, 'prev');
+    }
+
     const results: HistoricalMatch[] = [];
-    const request = store.openCursor();
+    let matchedCount = 0;
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result;
-      if (cursor) {
-        const match = cursor.value as HistoricalMatch;
-        let keep = true;
-
-        if (normTeam) {
-          const homeNorm = normalizedTeamKey(match.homeTeam);
-          const awayNorm = normalizedTeamKey(match.awayTeam);
-          if (!homeNorm.includes(normTeam) && !awayNorm.includes(normTeam)) {
-            keep = false;
-          }
-        }
-
-        if (keep && normComp) {
-          const compLower = match.competition.toLowerCase();
-          if (!compLower.includes(normComp)) {
-            keep = false;
-          }
-        }
-
-        if (keep && targetDate) {
-          if (match.date !== targetDate) {
-            keep = false;
-          }
-        }
-
-        if (keep) {
-          results.push(match);
-        }
-
-        cursor.continue();
-      } else {
-        // Ordina per data decrescente
-        results.sort((a, b) => b.date.localeCompare(a.date));
-        
-        // Paginazione
-        const startIndex = (page - 1) * pageSize;
-        const paginated = results.slice(startIndex, startIndex + pageSize);
-        resolve(paginated);
+      if (!cursor) {
+        resolve(results);
+        return;
       }
+
+      const match = cursor.value as HistoricalMatch;
+      let keep = true;
+
+      if (normTeam) {
+        const homeNorm = match.homeTeamKey || normalizedTeamKey(match.homeTeam);
+        const awayNorm = match.awayTeamKey || normalizedTeamKey(match.awayTeam);
+        if (!homeNorm.includes(normTeam) && !awayNorm.includes(normTeam)) {
+          keep = false;
+        }
+      }
+
+      if (keep && normComp) {
+        const compNorm = match.competitionKey || normalizedTeamKey(match.competition);
+        if (!compNorm.includes(normComp)) {
+          keep = false;
+        }
+      }
+
+      if (keep && targetDate) {
+        if (match.date !== targetDate) {
+          keep = false;
+        }
+      }
+
+      if (keep) {
+        if (matchedCount >= startIndex) {
+          results.push(match);
+          if (results.length === pageSize) {
+            resolve(results);
+            return;
+          }
+        }
+        matchedCount++;
+      }
+
+      cursor.continue();
     };
 
     request.onerror = () => reject(request.error);
@@ -387,14 +455,33 @@ export async function countFilteredMatches(filters: Omit<MatchesPageFilters, 'pa
   const { team, competition, date } = filters;
   
   const normTeam = team ? normalizedTeamKey(team) : '';
-  const normComp = competition ? competition.toLowerCase().trim() : '';
+  const normComp = competition ? normalizedTeamKey(competition) : '';
   const targetDate = date ? date.trim() : '';
+
+  // Se non ci sono filtri, restituisce direttamente count() velocissimo
+  if (!normTeam && !normComp && !targetDate) {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('historical_matches', 'readonly');
+      const store = transaction.objectStore('historical_matches');
+      const request = store.count();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('historical_matches', 'readonly');
     const store = transaction.objectStore('historical_matches');
+    
+    let request: IDBRequest<IDBCursorWithValue | null>;
+    if (store.indexNames.contains('date')) {
+      const index = store.index('date');
+      request = index.openCursor();
+    } else {
+      request = store.openCursor();
+    }
+
     let count = 0;
-    const request = store.openCursor();
 
     request.onsuccess = (event: any) => {
       const cursor = event.target.result;
@@ -403,16 +490,16 @@ export async function countFilteredMatches(filters: Omit<MatchesPageFilters, 'pa
         let keep = true;
 
         if (normTeam) {
-          const homeNorm = normalizedTeamKey(match.homeTeam);
-          const awayNorm = normalizedTeamKey(match.awayTeam);
+          const homeNorm = match.homeTeamKey || normalizedTeamKey(match.homeTeam);
+          const awayNorm = match.awayTeamKey || normalizedTeamKey(match.awayTeam);
           if (!homeNorm.includes(normTeam) && !awayNorm.includes(normTeam)) {
             keep = false;
           }
         }
 
         if (keep && normComp) {
-          const compLower = match.competition.toLowerCase();
-          if (!compLower.includes(normComp)) {
+          const compNorm = match.competitionKey || normalizedTeamKey(match.competition);
+          if (!compNorm.includes(normComp)) {
             keep = false;
           }
         }
@@ -430,6 +517,116 @@ export async function countFilteredMatches(filters: Omit<MatchesPageFilters, 'pa
         cursor.continue();
       } else {
         resolve(count);
+      }
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Calcola i metadati di diagnostica per i dati storici senza caricare l'intero array in memoria.
+ */
+export async function getHistoricalDiagnostics(): Promise<HistoricalDiagnostics | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('historical_matches', 'readonly');
+    const store = transaction.objectStore('historical_matches');
+    
+    const request = store.openCursor();
+    
+    let totalMatches = 0;
+    const compsSet = new Set<string>();
+    const teamsSet = new Set<string>();
+    let matchesWithOdds = 0;
+    let matchesWithXG = 0;
+    let matchesComplete = 0;
+    let minDate = '';
+    let maxDate = '';
+
+    const compCounts: Record<string, number> = {};
+    const teamHomeCounts: Record<string, number> = {};
+    const teamAwayCounts: Record<string, number> = {};
+    let futureMatchesCount = 0;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    request.onsuccess = (event: any) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        const m = cursor.value as HistoricalMatch;
+        totalMatches++;
+        compsSet.add(m.competition);
+        teamsSet.add(m.homeTeam);
+        teamsSet.add(m.awayTeam);
+
+        if (m.oddsHome !== undefined) matchesWithOdds++;
+        if (m.homeXG !== undefined) matchesWithXG++;
+        
+        if (
+          m.homeShots !== undefined && 
+          m.homeCorners !== undefined && 
+          m.homeYellowCards !== undefined &&
+          m.homeRedCards !== undefined
+        ) {
+          matchesComplete++;
+        }
+
+        if (!minDate || m.date < minDate) minDate = m.date;
+        if (!maxDate || m.date > maxDate) maxDate = m.date;
+
+        compCounts[m.competition] = (compCounts[m.competition] || 0) + 1;
+        teamHomeCounts[m.homeTeam] = (teamHomeCounts[m.homeTeam] || 0) + 1;
+        teamAwayCounts[m.awayTeam] = (teamAwayCounts[m.awayTeam] || 0) + 1;
+
+        if (m.date > todayStr) {
+          futureMatchesCount++;
+        }
+
+        cursor.continue();
+      } else {
+        if (totalMatches === 0) {
+          resolve(null);
+          return;
+        }
+
+        const warnings: { type: 'warning' | 'info'; text: string }[] = [];
+
+        if (totalMatches < 100) {
+          warnings.push({ type: 'warning', text: `Il sistema contiene solo ${totalMatches} partite totali (raccomandato: almeno 100 per un backtesting valido).` });
+        }
+
+        for (const [comp, count] of Object.entries(compCounts)) {
+          if (count < 30) {
+            warnings.push({ type: 'info', text: `La competizione "${comp}" ha solo ${count} partite registrate (raccomandato: almeno 30 per stima di medie campionato attendibili).` });
+          }
+        }
+
+        for (const team of Array.from(teamsSet)) {
+          const homeC = teamHomeCounts[team] || 0;
+          const awayC = teamAwayCounts[team] || 0;
+          if (homeC < 5) {
+            warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${homeC} partite in casa (consigliate almeno 5 per stime Poisson stabili).` });
+          }
+          if (awayC < 5) {
+            warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${awayC} partite in trasferta (consigliate almeno 5 per stime Poisson stabili).` });
+          }
+        }
+
+        if (futureMatchesCount > 0) {
+          warnings.push({ type: 'warning', text: `Rilevate ${futureMatchesCount} partite con date future rispetto ad oggi.` });
+        }
+
+        resolve({
+          totalMatches,
+          totalCompetitions: compsSet.size,
+          uniqueTeams: teamsSet.size,
+          timeRange: `${minDate} / ${maxDate}`,
+          pctOdds: (matchesWithOdds / totalMatches) * 100,
+          pctXG: (matchesWithXG / totalMatches) * 100,
+          pctComplete: (matchesComplete / totalMatches) * 100,
+          warnings
+        });
       }
     };
 

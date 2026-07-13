@@ -31,13 +31,13 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
   const [importSuccess, setImportSuccess] = useState(false);
   const [diagResults, setDiagResults] = useState<(TestResult & { model?: string })[] | null>(null);
 
-  const handleRunDiag = () => {
+  const handleRunDiag = async () => {
     const poissonResults = runDiagnostics().map(t => ({ ...t, model: 'Poisson Standard v1.1.0' }));
     const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Empirico v0.1.0' }));
     const dataEngineResults = runDataEngineValidation().map(t => ({ ...t, model: 'Football Data Engine v1.0.0' }));
     const dixonColesResults = runDixonColesValidation().map(t => ({ ...t, model: 'Dixon-Coles v1.0.0' }));
     const performanceResults = runPerformanceValidation().map(t => ({ ...t, model: 'Performance Engine v1.0.0' }));
-    const dataCollectorResults = runDataCollectorValidation().map(t => ({ ...t, model: 'Data Collector v1.0.0' }));
+    const dataCollectorResults = (await runDataCollectorValidation()).map(t => ({ ...t, model: 'Data Collector v1.0.0' }));
     setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults, ...dixonColesResults, ...performanceResults, ...dataCollectorResults]);
   };
 

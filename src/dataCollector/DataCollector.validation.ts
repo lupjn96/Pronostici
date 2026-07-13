@@ -1,7 +1,8 @@
-import { parseHistoricalCSV, parseNumberItalian } from './CSVParser';
+import { parseHistoricalCSV, parseNumberItalian, parseHistoricalCSVAsync } from './CSVParser';
 import { validateHistoricalMatch, mapHeadersToIndices, createHistoricalMatchId, normalizedTeamKey, parseHistoricalDate } from './HistoricalMatchValidator';
 import { calculateTeamStatistics, buildModelInputFromHistoricalData } from './HistoricalFeatureCalculator';
 import { HistoricalMatch } from './HistoricalMatchTypes';
+import { getMatchesPage, getHistoricalDiagnostics, saveDataset, clearAllHistoricalData } from './HistoricalMatchRepository';
 
 export interface TestResult {
   name: string;
@@ -9,7 +10,7 @@ export interface TestResult {
   message: string;
 }
 
-export function runDataCollectorValidation(): TestResult[] {
+export async function runDataCollectorValidation(): Promise<TestResult[]> {
   const results: TestResult[] = [];
 
   // =========================================================================
@@ -586,6 +587,255 @@ export function runDataCollectorValidation(): TestResult[] {
   } catch (err: any) {
     results.push({
       name: 'TEST P: Rigido isolamento temporale anti-leakage (esclusione data corrente)',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST Q — Parser CSV Asincrono
+  // =========================================================================
+  try {
+    const csvContent = `Date,Competition,HomeTeam,AwayTeam,FTHG,FTAG\n2026-01-01,Serie A,Inter,Milan,2,1\n2026-01-02,Serie A,Juventus,Roma,0,0`;
+    let progressValue = 0;
+    const parsed = await parseHistoricalCSVAsync(csvContent, {
+      chunkSize: 20,
+      onProgress: (p) => {
+        progressValue = p;
+      }
+    });
+    
+    const passed = parsed.headers.length === 6 && 
+                   parsed.rows.length === 2 && 
+                   parsed.rows[1][2] === 'Juventus' &&
+                   progressValue === 100;
+
+    results.push({
+      name: 'TEST Q: Parser CSV Asincrono (elaborazione a blocchi e progresso)',
+      passed,
+      message: passed
+        ? 'Successo: Parser asincrono a blocchi completato con progresso reale pari a 100%.'
+        : `Fallimento: headers=${parsed.headers.length}, rows=${parsed.rows.length}, progress=${progressValue}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST Q: Parser CSV Asincrono (elaborazione a blocchi e progresso)',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST R — Parser Annullabile
+  // =========================================================================
+  try {
+    const csvContent = `Date,Competition,HomeTeam,AwayTeam,FTHG,FTAG\n2026-01-01,Serie A,Inter,Milan,2,1\n2026-01-02,Serie A,Juventus,Roma,0,0`;
+    const controller = new AbortController();
+    
+    // Annulla subito
+    controller.abort();
+
+    let wasCancelled = false;
+    try {
+      await parseHistoricalCSVAsync(csvContent, {
+        signal: controller.signal,
+        chunkSize: 10
+      });
+    } catch (err: any) {
+      if (err.message === 'Parsing cancelled') {
+        wasCancelled = true;
+      }
+    }
+
+    const passed = wasCancelled;
+    results.push({
+      name: 'TEST R: Parser CSV Asincrono Annullabile',
+      passed,
+      message: passed
+        ? 'Successo: Il parser ha interrotto l\'esecuzione e sollevato l\'errore di cancellazione atteso.'
+        : 'Fallimento: Il parser non ha interrotto l\'esecuzione.'
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST R: Parser CSV Asincrono Annullabile',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST S — Newline nei Campi Quotati
+  // =========================================================================
+  try {
+    const csvContent = `Date,Competition,HomeTeam,AwayTeam,FTHG,FTAG\n"2026-01-01","Serie\nA","Inter","Milan",2,1`;
+    const parsed = await parseHistoricalCSVAsync(csvContent);
+    
+    const passed = parsed.rows.length === 1 && 
+                   parsed.rows[0][1] === `Serie\nA` &&
+                   parsed.rows[0][2] === 'Inter';
+
+    results.push({
+      name: 'TEST S: Parser CSV Supporto Newline nei campi quotati',
+      passed,
+      message: passed
+        ? 'Successo: Newline all\'interno dei campi tra virgolette gestito correttamente senza spezzare la riga.'
+        : `Fallimento: rows=${parsed.rows.length}, comp="${parsed.rows[0]?.[1]}"`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST S: Parser CSV Supporto Newline nei campi quotati',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST T — IndexedDB Migrazione DB & Paginazione ordinata
+  // =========================================================================
+  try {
+    // Svuota prima i dati storici
+    await clearAllHistoricalData();
+
+    const testDataset = {
+      id: 'test-ds-migration',
+      name: 'Test Migration',
+      source: 'Test',
+      importedAt: new Date().toISOString(),
+      totalRows: 3,
+      validRows: 3,
+      invalidRows: 0,
+      duplicateRows: 0,
+      matches: [
+        {
+          id: '2026-01-01_serie-a_inter_milan',
+          datasetId: 'test-ds-migration',
+          date: '2026-01-01',
+          competition: 'Serie A',
+          homeTeam: 'Inter',
+          awayTeam: 'Milan',
+          homeGoals: 2,
+          awayGoals: 1,
+          source: 'Test',
+          importedAt: new Date().toISOString(),
+        },
+        {
+          id: '2026-01-03_serie-a_juventus_roma',
+          datasetId: 'test-ds-migration',
+          date: '2026-01-03',
+          competition: 'Serie A',
+          homeTeam: 'Juventus',
+          awayTeam: 'Roma',
+          homeGoals: 0,
+          awayGoals: 0,
+          source: 'Test',
+          importedAt: new Date().toISOString(),
+        },
+        {
+          id: '2026-01-02_serie-a_lazio_fiorentina',
+          datasetId: 'test-ds-migration',
+          date: '2026-01-02',
+          competition: 'Serie A',
+          homeTeam: 'Lazio',
+          awayTeam: 'Fiorentina',
+          homeGoals: 1,
+          awayGoals: 1,
+          source: 'Test',
+          importedAt: new Date().toISOString(),
+        }
+      ]
+    };
+
+    // Salviamo il dataset (questo utilizzerà add() internamente e popolerà i nuovi campi per ogni record)
+    await saveDataset(testDataset);
+
+    // Test Paginazione ed ordinamento (getMatchesPage)
+    // Richiediamo pagina 1 con pageSize 2. Dovrebbe restituire in ordine decrescente di data:
+    // 1. 2026-01-03 (Juventus vs Roma)
+    // 2. 2026-01-02 (Lazio vs Fiorentina)
+    const page1 = await getMatchesPage({ page: 1, pageSize: 2 });
+    const page2 = await getMatchesPage({ page: 2, pageSize: 2 });
+
+    const p1Ok = page1.length === 2 && 
+                 page1[0].date === '2026-01-03' && 
+                 page1[1].date === '2026-01-02';
+    const p2Ok = page2.length === 1 && 
+                 page2[0].date === '2026-01-01';
+
+    const passed = p1Ok && p2Ok;
+    results.push({
+      name: 'TEST T: Database Paginazione ed Ordinamento decrescente (IndexedDB)',
+      passed,
+      message: passed
+        ? 'Successo: Le partite vengono lette con un cursore e paginate correttamente in ordine decrescente di data.'
+        : `Fallimento: p1Length=${page1.length}, p1_0=${page1[0]?.date}, p1_1=${page1[1]?.date}, p2Length=${page2.length}, p2_0=${page2[0]?.date}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST T: Database Paginazione ed Ordinamento decrescente (IndexedDB)',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST U — getHistoricalDiagnostics (Diagnostica ottimizzata)
+  // =========================================================================
+  try {
+    const diag = await getHistoricalDiagnostics();
+    
+    const passed = diag !== null && 
+                   diag.totalMatches === 3 && 
+                   diag.totalCompetitions === 1 && 
+                   diag.uniqueTeams === 6 && 
+                   diag.timeRange === '2026-01-01 / 2026-01-03';
+
+    results.push({
+      name: 'TEST U: Diagnostica Ottimizzata (getHistoricalDiagnostics)',
+      passed,
+      message: passed
+        ? `Successo: Diagnostica calcolata correttamente in un unico passo cursor-based senza caricare array di record (${diag.totalMatches} partite, arco temporale: ${diag.timeRange}).`
+        : `Fallimento: diag=${JSON.stringify(diag)}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST U: Diagnostica Ottimizzata (getHistoricalDiagnostics)',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // =========================================================================
+  // TEST V — Schema Database Versione 2 (Verifica Indici)
+  // =========================================================================
+  try {
+    const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('football_prediction_lab');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const db = await dbPromise;
+    const tx = db.transaction('historical_matches', 'readonly');
+    const store = tx.objectStore('historical_matches');
+    
+    const indexNames = Array.from(store.indexNames);
+    const hasDate = indexNames.includes('date');
+    const hasCompKey = indexNames.includes('competitionKey');
+    const hasHomeKey = indexNames.includes('homeTeamKey');
+    const hasAwayKey = indexNames.includes('awayTeamKey');
+    
+    db.close();
+
+    const passed = hasDate && hasCompKey && hasHomeKey && hasAwayKey;
+    results.push({
+      name: 'TEST V: Verifica Indici Schema Database (Versione 2)',
+      passed,
+      message: passed
+        ? `Successo: Gli indici richiesti (date, competitionKey, homeTeamKey, awayTeamKey) sono presenti nello schema.`
+        : `Fallimento: indici rilevati: ${indexNames.join(', ')}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST V: Verifica Indici Schema Database (Versione 2)',
       passed: false,
       message: `Errore: ${err.message}`
     });

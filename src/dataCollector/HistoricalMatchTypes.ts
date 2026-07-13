@@ -5,9 +5,12 @@ export interface HistoricalMatch {
   date: string;
   season?: string;
   competition: string;
+  competitionKey?: string;
 
   homeTeam: string;
   awayTeam: string;
+  homeTeamKey?: string;
+  awayTeamKey?: string;
 
   homeGoals: number;
   awayGoals: number;
@@ -55,3 +58,15 @@ export interface HistoricalDatasetMetadata {
 export interface HistoricalDataset extends HistoricalDatasetMetadata {
   matches: HistoricalMatch[];
 }
+
+export interface HistoricalDiagnostics {
+  totalMatches: number;
+  totalCompetitions: number;
+  uniqueTeams: number;
+  timeRange: string;
+  pctOdds: number;
+  pctXG: number;
+  pctComplete: number;
+  warnings: { type: 'warning' | 'info'; text: string }[];
+}
+

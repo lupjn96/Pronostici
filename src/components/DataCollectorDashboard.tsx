@@ -19,7 +19,7 @@ import {
   Award
 } from 'lucide-react';
 import { HistoricalMatch, HistoricalDataset, HistoricalDatasetMetadata } from '../dataCollector/HistoricalMatchTypes';
-import { parseHistoricalCSV } from '../dataCollector/CSVParser';
+import { parseHistoricalCSV, parseHistoricalCSVAsync } from '../dataCollector/CSVParser';
 import { validateHistoricalMatch, mapHeadersToIndices, createHistoricalMatchId, normalizedTeamKey } from '../dataCollector/HistoricalMatchValidator';
 import { 
   saveDataset, 
@@ -30,7 +30,8 @@ import {
   clearAllHistoricalData, 
   countMatches,
   getMatchesPage,
-  countFilteredMatches
+  countFilteredMatches,
+  getHistoricalDiagnostics
 } from '../dataCollector/HistoricalMatchRepository';
 
 interface ErrorLogItem {
@@ -140,94 +141,8 @@ export default function DataCollectorDashboard() {
   const handleLoadDiagnostics = async () => {
     try {
       setLoadingDiagnostics(true);
-      const matches = await getAllMatches();
-      if (matches.length === 0) {
-        setDiagnosticsResult(null);
-        return;
-      }
-
-      const totalMatches = matches.length;
-      const compsSet = new Set<string>();
-      const teamsSet = new Set<string>();
-      let matchesWithOdds = 0;
-      let matchesWithXG = 0;
-      let matchesComplete = 0;
-      let minDate = matches[0].date;
-      let maxDate = matches[0].date;
-
-      const compCounts: Record<string, number> = {};
-      const teamHomeCounts: Record<string, number> = {};
-      const teamAwayCounts: Record<string, number> = {};
-      const futureMatches: HistoricalMatch[] = [];
-
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      for (const m of matches) {
-        compsSet.add(m.competition);
-        teamsSet.add(m.homeTeam);
-        teamsSet.add(m.awayTeam);
-
-        if (m.oddsHome !== undefined) matchesWithOdds++;
-        if (m.homeXG !== undefined) matchesWithXG++;
-        
-        if (
-          m.homeShots !== undefined && 
-          m.homeCorners !== undefined && 
-          m.homeYellowCards !== undefined &&
-          m.homeRedCards !== undefined
-        ) {
-          matchesComplete++;
-        }
-
-        if (m.date < minDate) minDate = m.date;
-        if (m.date > maxDate) maxDate = m.date;
-
-        compCounts[m.competition] = (compCounts[m.competition] || 0) + 1;
-        teamHomeCounts[m.homeTeam] = (teamHomeCounts[m.homeTeam] || 0) + 1;
-        teamAwayCounts[m.awayTeam] = (teamAwayCounts[m.awayTeam] || 0) + 1;
-
-        if (m.date > todayStr) {
-          futureMatches.push(m);
-        }
-      }
-
-      const warnings: { type: 'warning' | 'info'; text: string }[] = [];
-
-      if (totalMatches < 100) {
-        warnings.push({ type: 'warning', text: `Il sistema contiene solo ${totalMatches} partite totali (raccomandato: almeno 100 per un backtesting valido).` });
-      }
-
-      for (const [comp, count] of Object.entries(compCounts)) {
-        if (count < 30) {
-          warnings.push({ type: 'info', text: `La competizione "${comp}" ha solo ${count} partite registrate (raccomandato: almeno 30 per stima di medie campionato attendibili).` });
-        }
-      }
-
-      for (const team of Array.from(teamsSet)) {
-        const homeC = teamHomeCounts[team] || 0;
-        const awayC = teamAwayCounts[team] || 0;
-        if (homeC < 5) {
-          warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${homeC} partite in casa (consigliate almeno 5 per stime Poisson stabili).` });
-        }
-        if (awayC < 5) {
-          warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${awayC} partite in trasferta (consigliate almeno 5 per stime Poisson stabili).` });
-        }
-      }
-
-      if (futureMatches.length > 0) {
-        warnings.push({ type: 'warning', text: `Rilevate ${futureMatches.length} partite con date future rispetto ad oggi.` });
-      }
-
-      setDiagnosticsResult({
-        totalMatches,
-        totalCompetitions: compsSet.size,
-        uniqueTeams: teamsSet.size,
-        timeRange: `${minDate} / ${maxDate}`,
-        pctOdds: (matchesWithOdds / totalMatches) * 100,
-        pctXG: (matchesWithXG / totalMatches) * 100,
-        pctComplete: (matchesComplete / totalMatches) * 100,
-        warnings
-      });
+      const diagnostics = await getHistoricalDiagnostics();
+      setDiagnosticsResult(diagnostics);
     } catch (err) {
       console.error('Errore nel calcolo della diagnostica:', err);
     } finally {
@@ -309,8 +224,41 @@ export default function DataCollectorDashboard() {
         }
         setAnalysisProgress(15);
 
-        // Parsing CSV
-        const parsed = parseHistoricalCSV(text);
+        // Parsing CSV asincrono non bloccante con progresso reale e cancellazione
+        const abortController = new AbortController();
+        
+        // Mappiamo il progresso del parser asincrono dal 5% al 25%
+        const updateProgress = (prog: number) => {
+          setAnalysisProgress(Math.round(5 + prog * 0.2));
+        };
+
+        const checkCancelInterval = setInterval(() => {
+          if (cancellationRef.current) {
+            abortController.abort();
+            clearInterval(checkCancelInterval);
+          }
+        }, 50);
+
+        let parsed;
+        try {
+          parsed = await parseHistoricalCSVAsync(text, {
+            onProgress: updateProgress,
+            signal: abortController.signal
+          });
+        } catch (err: any) {
+          clearInterval(checkCancelInterval);
+          if (err.message === 'Parsing cancelled' || cancellationRef.current) {
+            setIsAnalyzing(false);
+            setUploadError("Analisi annullata.");
+          } else {
+            setUploadError(`Errore durante il parsing del file: ${err.message}`);
+            setIsAnalyzing(false);
+          }
+          return;
+        } finally {
+          clearInterval(checkCancelInterval);
+        }
+
         if (parsed.headers.length === 0) {
           setUploadError('Il file CSV sembra vuoto o non ha intestazioni valide.');
           setIsAnalyzing(false);
@@ -424,7 +372,7 @@ export default function DataCollectorDashboard() {
           }
 
           // Calcola e aggiorna il progresso reale basato sulle righe elaborate
-          const progressPercent = Math.min(95, Math.round(15 + (offset / totalRows) * 80));
+          const progressPercent = Math.min(95, Math.round(25 + (offset / totalRows) * 70));
           setAnalysisProgress(progressPercent);
 
           // Rilascia il thread principale per l'interfaccia utente (Safari/iPhone friendly)
