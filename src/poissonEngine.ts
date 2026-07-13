@@ -7,7 +7,7 @@ import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPre
 import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
 import { MatchFeatures } from './data/types';
 import { FootballDataEngine } from './data/FootballDataEngine';
-import { evaluatePrediction } from './performance/PerformanceEngine';
+import { evaluatePrediction, getOutcome } from './performance/PerformanceEngine';
 
 // 1. Funzione fattoriale
 export function factorial(n: number): number {
@@ -353,16 +353,14 @@ export function migrateSavedPrediction(pred: any): SavedPrediction {
     const rawHomeGoals = Number(pred.actualResult.homeGoals);
     const rawAwayGoals = Number(pred.actualResult.awayGoals);
     if (
-      !isNaN(rawHomeGoals) && isFinite(rawHomeGoals) && rawHomeGoals >= 0 && rawHomeGoals <= 30 &&
-      !isNaN(rawAwayGoals) && isFinite(rawAwayGoals) && rawAwayGoals >= 0 && rawAwayGoals <= 30
+      Number.isInteger(rawHomeGoals) && rawHomeGoals >= 0 && rawHomeGoals <= 30 &&
+      Number.isInteger(rawAwayGoals) && rawAwayGoals >= 0 && rawAwayGoals <= 30
     ) {
-      const outcome = (pred.actualResult.outcome === 'HOME' || pred.actualResult.outcome === 'DRAW' || pred.actualResult.outcome === 'AWAY')
-        ? pred.actualResult.outcome
-        : (rawHomeGoals > rawAwayGoals ? 'HOME' : (rawHomeGoals === rawAwayGoals ? 'DRAW' : 'AWAY'));
+      const outcome = getOutcome(rawHomeGoals, rawAwayGoals);
       
       actualResult = {
-        homeGoals: Math.floor(rawHomeGoals),
-        awayGoals: Math.floor(rawAwayGoals),
+        homeGoals: rawHomeGoals,
+        awayGoals: rawAwayGoals,
         outcome,
         recordedAt: typeof pred.actualResult.recordedAt === 'string' ? pred.actualResult.recordedAt : new Date().toISOString()
       };

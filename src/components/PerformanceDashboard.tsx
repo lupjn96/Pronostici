@@ -5,7 +5,7 @@
 
 import React, { useMemo } from 'react';
 import { SavedPrediction } from '../types';
-import { aggregateModelPerformance, ModelPerformanceSummary } from '../performance/PerformanceAggregator';
+import { aggregateModelPerformance, ModelPerformanceSummary, isValidEvaluation } from '../performance/PerformanceAggregator';
 import { 
   Trophy, 
   Target, 
@@ -48,7 +48,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ pred
 
   // Conta le predizioni valutate in totale
   const totalEvaluated = useMemo(() => {
-    return predictions.filter(p => p.evaluation !== undefined).length;
+    return predictions.filter(p => p.evaluation !== undefined && isValidEvaluation(p.evaluation)).length;
   }, [predictions]);
 
   // Funzione per ottenere il badge sul campione statistico
@@ -300,7 +300,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ pred
                       <div>
                         <span className="text-[9px] text-slate-500 block">Prob. Esito Reale Media</span>
                         <span className="text-sm font-bold font-mono text-blue-400">
-                          {model.averageProbabilityAssignedToActualOutcome.toFixed(1)}%
+                          {(model.averageProbabilityAssignedToActualOutcome * 100).toFixed(1)}%
                         </span>
                       </div>
                     </div>

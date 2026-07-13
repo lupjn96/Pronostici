@@ -424,5 +424,102 @@ export function runPerformanceValidation(): TestResult[] {
     });
   }
 
+  // ==========================================
+  // TEST I — Rigorous validations for invalid records and migration
+  // ==========================================
+  try {
+    // 1. evaluation con NaN deve essere ignorata;
+    // 2. evaluation con Infinity deve essere ignorata;
+    // 3. evaluation con Brier 2.1 deve essere ignorata;
+    // 4. evaluation con probabilityAssignedToActualOutcome 1.1 deve essere ignorata;
+    // 5. evaluatedPredictions deve contare soltanto record validi;
+    const baseMock = createMockResult(50, 30, 20);
+    const validPred = createSavedPrediction('valid-1', baseMock);
+    validPred.evaluation = {
+      modelId: 'mock-model',
+      modelName: 'Mock Model',
+      modelVersion: '1.0.0',
+      predictedOutcome: 'HOME',
+      actualOutcome: 'HOME',
+      correct1X2: true,
+      correctExactScore: true,
+      brierScore: 0.1,
+      logLoss: 0.2,
+      probabilityAssignedToActualOutcome: 0.5,
+      predictedHomeGoals: 1,
+      predictedAwayGoals: 0,
+      actualHomeGoals: 1,
+      actualAwayGoals: 0,
+      absoluteHomeGoalsError: 0,
+      absoluteAwayGoalsError: 0,
+      totalGoalsAbsoluteError: 0,
+      evaluatedAt: new Date().toISOString()
+    };
+
+    const nanPred = createSavedPrediction('nan-1', baseMock);
+    nanPred.evaluation = { ...validPred.evaluation, brierScore: NaN };
+
+    const infPred = createSavedPrediction('inf-1', baseMock);
+    infPred.evaluation = { ...validPred.evaluation, logLoss: Infinity };
+
+    const brierOutPred = createSavedPrediction('brier-out-1', baseMock);
+    brierOutPred.evaluation = { ...validPred.evaluation, brierScore: 2.1 };
+
+    const probOutPred = createSavedPrediction('prob-out-1', baseMock);
+    probOutPred.evaluation = { ...validPred.evaluation, probabilityAssignedToActualOutcome: 1.1 };
+
+    const aggregated = aggregateModelPerformance([validPred, nanPred, infPred, brierOutPred, probOutPred]);
+    const mockModelSummary = aggregated.find(s => s.modelId === 'mock-model');
+    const correctCount = mockModelSummary ? mockModelSummary.evaluatedPredictions === 1 : false;
+
+    // 6. risultato reale con gol 2.5 deve essere rifiutato;
+    const decimalGoalsRaw: any = {
+      id: 'decimal-1',
+      dateTime: new Date().toISOString(),
+      input: validPred.input,
+      result: baseMock,
+      actualResult: {
+        homeGoals: 2.5,
+        awayGoals: 0,
+        outcome: 'HOME',
+        recordedAt: new Date().toISOString()
+      }
+    };
+    const migratedDecimal = migrateSavedPrediction(decimalGoalsRaw);
+    const rejectedDecimal = migratedDecimal.actualResult === undefined;
+
+    // 7. risultato 2-0 con outcome importato AWAY deve essere migrato come HOME.
+    const wrongOutcomeRaw: any = {
+      id: 'wrong-outcome-1',
+      dateTime: new Date().toISOString(),
+      input: validPred.input,
+      result: baseMock,
+      actualResult: {
+        homeGoals: 2,
+        awayGoals: 0,
+        outcome: 'AWAY',
+        recordedAt: new Date().toISOString()
+      }
+    };
+    const migratedWrongOutcome = migrateSavedPrediction(wrongOutcomeRaw);
+    const correctedOutcome = migratedWrongOutcome.actualResult?.outcome === 'HOME';
+
+    const passed = correctCount && rejectedDecimal && correctedOutcome;
+
+    results.push({
+      name: 'TEST I: Validità record, rifiuto decimali e forzatura outcome corretto',
+      passed,
+      message: passed
+        ? `Successo: Record invalidi ignorati (${aggregated[0]?.evaluatedPredictions || 0} validi su 5), 2.5 gol rifiutato, outcome 2-0 AWAY corretto in HOME.`
+        : `Fallimento: correctCount=${correctCount} (num_evaluated=${mockModelSummary?.evaluatedPredictions}), rejectedDecimal=${rejectedDecimal}, correctedOutcome=${correctedOutcome}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST I: Validità record, rifiuto decimali e forzatura outcome corretto',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
   return results;
 }

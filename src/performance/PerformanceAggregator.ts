@@ -21,7 +21,7 @@ export interface ModelPerformanceSummary {
   averageBrierScore: number;
   averageLogLoss: number;
 
-  averageProbabilityAssignedToActualOutcome: number; // Percentuale 0-100
+  averageProbabilityAssignedToActualOutcome: number; // Frazione interna da 0 a 1
 
   averageHomeGoalsError: number;
   averageAwayGoalsError: number;
@@ -29,23 +29,46 @@ export interface ModelPerformanceSummary {
 }
 
 /**
- * Helper to safely handle any NaN, Infinity, or out-of-bounds numbers
+ * Verifica se un'evaluation è valida secondo criteri statistici rigorosi
  */
-function safeNum(val: number, fallback: number = 0, min?: number, max?: number): number {
-  if (val === null || val === undefined || isNaN(val) || !isFinite(val)) {
-    return fallback;
-  }
-  if (min !== undefined && val < min) return min;
-  if (max !== undefined && val > max) return max;
-  return val;
+export function isValidEvaluation(evaluation: any): boolean {
+  if (!evaluation || typeof evaluation !== 'object') return false;
+
+  const brierScore = evaluation.brierScore;
+  const logLoss = evaluation.logLoss;
+  const probabilityAssignedToActualOutcome = evaluation.probabilityAssignedToActualOutcome;
+  const absoluteHomeGoalsError = evaluation.absoluteHomeGoalsError;
+  const absoluteAwayGoalsError = evaluation.absoluteAwayGoalsError;
+  const totalGoalsAbsoluteError = evaluation.totalGoalsAbsoluteError;
+  const correct1X2 = evaluation.correct1X2;
+  const correctExactScore = evaluation.correctExactScore;
+  const modelId = evaluation.modelId;
+  const modelName = evaluation.modelName;
+  const modelVersion = evaluation.modelVersion;
+
+  if (typeof brierScore !== 'number' || isNaN(brierScore) || !isFinite(brierScore) || brierScore < 0 || brierScore > 2) return false;
+  if (typeof logLoss !== 'number' || isNaN(logLoss) || !isFinite(logLoss) || logLoss < 0) return false;
+  if (typeof probabilityAssignedToActualOutcome !== 'number' || isNaN(probabilityAssignedToActualOutcome) || !isFinite(probabilityAssignedToActualOutcome) || probabilityAssignedToActualOutcome < 0 || probabilityAssignedToActualOutcome > 1) return false;
+  if (typeof absoluteHomeGoalsError !== 'number' || isNaN(absoluteHomeGoalsError) || !isFinite(absoluteHomeGoalsError) || absoluteHomeGoalsError < 0) return false;
+  if (typeof absoluteAwayGoalsError !== 'number' || isNaN(absoluteAwayGoalsError) || !isFinite(absoluteAwayGoalsError) || absoluteAwayGoalsError < 0) return false;
+  if (typeof totalGoalsAbsoluteError !== 'number' || isNaN(totalGoalsAbsoluteError) || !isFinite(totalGoalsAbsoluteError) || totalGoalsAbsoluteError < 0) return false;
+
+  if (typeof correct1X2 !== 'boolean') return false;
+  if (typeof correctExactScore !== 'boolean') return false;
+
+  if (typeof modelId !== 'string' || modelId.trim() === '') return false;
+  if (typeof modelName !== 'string' || modelName.trim() === '') return false;
+  if (typeof modelVersion !== 'string' || modelVersion.trim() === '') return false;
+
+  return true;
 }
 
 /**
  * Raggruppa e aggrega le performance dei modelli basandosi sui pronostici valutati
  */
 export function aggregateModelPerformance(predictions: SavedPrediction[]): ModelPerformanceSummary[] {
-  // Filtra solo le predizioni valutate (con il campo evaluation presente)
-  const evaluated = predictions.filter(p => p.evaluation !== undefined) as (SavedPrediction & { evaluation: PredictionEvaluation })[];
+  // Filtra solo le predizioni con evaluation presente e valida
+  const evaluated = predictions.filter(p => p.evaluation !== undefined && isValidEvaluation(p.evaluation)) as (SavedPrediction & { evaluation: PredictionEvaluation })[];
 
   if (evaluated.length === 0) {
     return [];
@@ -87,22 +110,22 @@ export function aggregateModelPerformance(predictions: SavedPrediction[]): Model
     for (const ev of group.evals) {
       if (ev.correct1X2) correct1X2Count++;
       if (ev.correctExactScore) correctExactScoreCount++;
-      sumBrier += safeNum(ev.brierScore, 0, 0, 3);
-      sumLogLoss += safeNum(ev.logLoss, 0, 0, 100);
-      sumProb += safeNum(ev.probabilityAssignedToActualOutcome, 0, 0, 1);
-      sumHomeGoalsError += safeNum(ev.absoluteHomeGoalsError, 0, 0);
-      sumAwayGoalsError += safeNum(ev.absoluteAwayGoalsError, 0, 0);
-      sumTotalGoalsError += safeNum(ev.totalGoalsAbsoluteError, 0, 0);
+      sumBrier += ev.brierScore;
+      sumLogLoss += ev.logLoss;
+      sumProb += ev.probabilityAssignedToActualOutcome;
+      sumHomeGoalsError += ev.absoluteHomeGoalsError;
+      sumAwayGoalsError += ev.absoluteAwayGoalsError;
+      sumTotalGoalsError += ev.totalGoalsAbsoluteError;
     }
 
-    const accuracy1X2 = n > 0 ? safeNum((correct1X2Count / n) * 100, 0, 0, 100) : 0;
-    const exactScoreAccuracy = n > 0 ? safeNum((correctExactScoreCount / n) * 100, 0, 0, 100) : 0;
-    const averageBrierScore = n > 0 ? safeNum(sumBrier / n, 0, 0, 3) : 0;
-    const averageLogLoss = n > 0 ? safeNum(sumLogLoss / n, 0, 0, 100) : 0;
-    const averageProbabilityAssignedToActualOutcome = n > 0 ? safeNum((sumProb / n) * 100, 0, 0, 100) : 0;
-    const averageHomeGoalsError = n > 0 ? safeNum(sumHomeGoalsError / n, 0, 0) : 0;
-    const averageAwayGoalsError = n > 0 ? safeNum(sumAwayGoalsError / n, 0, 0) : 0;
-    const averageTotalGoalsError = n > 0 ? safeNum(sumTotalGoalsError / n, 0, 0) : 0;
+    const accuracy1X2 = n > 0 ? (correct1X2Count / n) * 100 : 0;
+    const exactScoreAccuracy = n > 0 ? (correctExactScoreCount / n) * 100 : 0;
+    const averageBrierScore = n > 0 ? sumBrier / n : 0;
+    const averageLogLoss = n > 0 ? sumLogLoss / n : 0;
+    const averageProbabilityAssignedToActualOutcome = n > 0 ? sumProb / n : 0;
+    const averageHomeGoalsError = n > 0 ? sumHomeGoalsError / n : 0;
+    const averageAwayGoalsError = n > 0 ? sumAwayGoalsError / n : 0;
+    const averageTotalGoalsError = n > 0 ? sumTotalGoalsError / n : 0;
 
     summaries.push({
       modelId: group.info.id,
