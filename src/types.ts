@@ -71,6 +71,9 @@ export interface PredictionResult {
     epistemicIndex: number;
   };
   totalUncertaintyIndex?: number;
+  dixonColesParameters?: {
+    rho: number;
+  };
 }
 
 export interface PredictionModel {

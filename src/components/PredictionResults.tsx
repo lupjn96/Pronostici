@@ -380,14 +380,14 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
             <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-500 uppercase block">
-                  Parametro Dipendenza (ρ)
+                  Parametro rho
                 </span>
                 <span className="text-3xl font-black font-mono text-emerald-400 mt-2 block">
                   -0.080
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed mt-3">
-                <span className="font-bold text-emerald-400">ρ (rho)</span> corregge la dipendenza tra i gol delle due squadre nei risultati a basso punteggio.
+                ρ corregge la dipendenza tra i gol delle due squadre nei risultati a basso punteggio. In questa versione è un valore fisso e non è ancora stimato dai dati storici.
               </p>
             </div>
 

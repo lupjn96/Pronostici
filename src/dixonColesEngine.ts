@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel } from './types';
+import { PredictionResult, ExactScoreProb, PredictionModel } from './types';
 import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
 import { MatchFeatures } from './data/types';
 
@@ -31,10 +31,10 @@ export function tau(x: number, y: number, lambda: number, mu: number, rho: numbe
   if (x === 0 && y === 0) {
     return 1 - lambda * mu * rho;
   }
-  if (x === 1 && y === 0) {
+  if (x === 0 && y === 1) {
     return 1 + lambda * rho;
   }
-  if (x === 0 && y === 1) {
+  if (x === 1 && y === 0) {
     return 1 + mu * rho;
   }
   if (x === 1 && y === 1) {
@@ -279,6 +279,9 @@ export const dixonColesModel: PredictionModel = {
         dataQuality: Math.round(dataQuality * 100) / 100,
         solidityIndex: Math.round(solidityIndex * 100) / 100,
         classification
+      },
+      dixonColesParameters: {
+        rho
       }
     };
   }

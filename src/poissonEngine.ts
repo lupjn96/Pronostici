@@ -340,7 +340,10 @@ export function migrateSavedPrediction(pred: any): SavedPrediction {
       awayRate: Number(rawResult.parameterUncertainty.awayRate) || 0,
       epistemicIndex: Number(rawResult.parameterUncertainty.epistemicIndex) || 0
     } : undefined,
-    totalUncertaintyIndex: rawResult.totalUncertaintyIndex !== undefined ? Number(rawResult.totalUncertaintyIndex) : undefined
+    totalUncertaintyIndex: rawResult.totalUncertaintyIndex !== undefined ? Number(rawResult.totalUncertaintyIndex) : undefined,
+    dixonColesParameters: rawResult.dixonColesParameters && !isNaN(Number(rawResult.dixonColesParameters.rho)) && isFinite(Number(rawResult.dixonColesParameters.rho))
+      ? { rho: Number(rawResult.dixonColesParameters.rho) }
+      : undefined
   };
 
   return {

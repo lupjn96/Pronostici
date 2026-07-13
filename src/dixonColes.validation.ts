@@ -5,7 +5,7 @@
 
 import { MatchFeatures } from './data/types';
 import { poissonModel } from './poissonEngine';
-import { dixonColesModel } from './dixonColesEngine';
+import { dixonColesModel, tau } from './dixonColesEngine';
 
 export interface TestResult {
   name: string;
@@ -161,6 +161,74 @@ export function runDixonColesValidation(): TestResult[] {
   } catch (err: any) {
     results.push({
       name: 'TEST F: Differenza trascurabile nei risultati alti (3-2, 4-3, 2-4)',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // TEST G: Verifica diretta della funzione tau()
+  try {
+    const lambda = 1.5;
+    const mu = 0.9;
+    const rho = -0.08;
+    const tol = 1e-12;
+
+    const expected00 = 1 - lambda * mu * rho;
+    const expected01 = 1 + lambda * rho;
+    const expected10 = 1 + mu * rho;
+    const expected11 = 1 - rho;
+    const expected22 = 1;
+
+    const actual00 = tau(0, 0, lambda, mu, rho);
+    const actual01 = tau(0, 1, lambda, mu, rho);
+    const actual10 = tau(1, 0, lambda, mu, rho);
+    const actual11 = tau(1, 1, lambda, mu, rho);
+    const actual22 = tau(2, 2, lambda, mu, rho);
+
+    const diff00 = Math.abs(actual00 - expected00);
+    const diff01 = Math.abs(actual01 - expected01);
+    const diff10 = Math.abs(actual10 - expected10);
+    const diff11 = Math.abs(actual11 - expected11);
+    const diff22 = Math.abs(actual22 - expected22);
+
+    const passed = diff00 < tol && diff01 < tol && diff10 < tol && diff11 < tol && diff22 < tol;
+
+    results.push({
+      name: 'TEST G: Verifica diretta dei coefficienti tau()',
+      passed,
+      message: passed
+        ? `Successo: Tutti i coefficienti della funzione tau() rispettano i valori attesi con tolleranza ${tol}.\n` +
+          `  - tau(0,0): effettivo=${actual00.toFixed(4)}, atteso=${expected00.toFixed(4)}\n` +
+          `  - tau(0,1): effettivo=${actual01.toFixed(4)}, atteso=${expected01.toFixed(4)} (con lambda)\n` +
+          `  - tau(1,0): effettivo=${actual10.toFixed(4)}, atteso=${expected10.toFixed(4)} (con mu)\n` +
+          `  - tau(1,1): effettivo=${actual11.toFixed(4)}, atteso=${expected11.toFixed(4)}\n` +
+          `  - tau(2,2): effettivo=${actual22.toFixed(4)}, atteso=${expected22.toFixed(4)}`
+        : `Fallimento: Discrepanza nei coefficienti tau(). lambda e mu potrebbero essere scambiati.\n` +
+          `  - tau(0,1): effettivo=${actual01.toFixed(4)}, atteso=${expected01.toFixed(4)}\n` +
+          `  - tau(1,0): effettivo=${actual10.toFixed(4)}, atteso=${expected10.toFixed(4)}`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST G: Verifica diretta dei coefficienti tau()',
+      passed: false,
+      message: `Errore: ${err.message}`
+    });
+  }
+
+  // TEST H: Verifica della presenza e del valore di dixonColesParameters.rho
+  try {
+    const rhoVal = dcRes.dixonColesParameters?.rho;
+    const passed = rhoVal === -0.08;
+    results.push({
+      name: 'TEST H: Verifica dixonColesParameters.rho === -0.08',
+      passed,
+      message: passed
+        ? `Successo: dixonColesParameters.rho è esattamente ${rhoVal}`
+        : `Fallimento: dixonColesParameters.rho è ${rhoVal} anziché -0.08`
+    });
+  } catch (err: any) {
+    results.push({
+      name: 'TEST H: Verifica dixonColesParameters.rho === -0.08',
       passed: false,
       message: `Errore: ${err.message}`
     });
