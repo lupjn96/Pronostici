@@ -89,4 +89,44 @@ export interface SavedPrediction {
   dateTime: string;
   input: ModelInput;
   result: PredictionResult;
+  actualResult?: ActualMatchResult;
+  evaluation?: PredictionEvaluation;
 }
+
+export type MatchOutcome = 'HOME' | 'DRAW' | 'AWAY';
+
+export interface ActualMatchResult {
+  homeGoals: number;
+  awayGoals: number;
+  outcome: MatchOutcome;
+  recordedAt: string;
+}
+
+export interface PredictionEvaluation {
+  modelId: string;
+  modelName: string;
+  modelVersion: string;
+
+  predictedOutcome: MatchOutcome;
+  actualOutcome: MatchOutcome;
+
+  correct1X2: boolean;
+  correctExactScore: boolean;
+
+  brierScore: number;
+  logLoss: number;
+
+  probabilityAssignedToActualOutcome: number;
+
+  predictedHomeGoals: number;
+  predictedAwayGoals: number;
+  actualHomeGoals: number;
+  actualAwayGoals: number;
+
+  absoluteHomeGoalsError: number;
+  absoluteAwayGoalsError: number;
+  totalGoalsAbsoluteError: number;
+
+  evaluatedAt: string;
+}
+

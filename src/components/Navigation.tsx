@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LayoutDashboard, Calculator, History, GitCompare, Settings, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Calculator, History, GitCompare, Settings, ShieldAlert, Activity } from 'lucide-react';
 import { MODEL_VERSION } from '../types';
 
 interface NavigationProps {
@@ -17,6 +17,7 @@ export default function Navigation({ currentSection, setSection }: NavigationPro
     { id: 'prediction', label: 'Previsione', icon: Calculator },
     { id: 'history', label: 'Storico', icon: History },
     { id: 'models', label: 'Modelli', icon: GitCompare },
+    { id: 'performance', label: 'Performance', icon: Activity },
     { id: 'settings', label: 'Impostazioni', icon: Settings },
   ];
 

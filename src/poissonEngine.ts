@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPrediction } from './types';
+import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPrediction, ActualMatchResult, PredictionEvaluation } from './types';
 import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
 import { MatchFeatures } from './data/types';
 import { FootballDataEngine } from './data/FootballDataEngine';
+import { evaluatePrediction } from './performance/PerformanceEngine';
 
 // 1. Funzione fattoriale
 export function factorial(n: number): number {
@@ -346,11 +347,103 @@ export function migrateSavedPrediction(pred: any): SavedPrediction {
       : undefined
   };
 
-  return {
+  // Validate actualResult safely if present
+  let actualResult: ActualMatchResult | undefined = undefined;
+  if (pred.actualResult && typeof pred.actualResult === 'object') {
+    const rawHomeGoals = Number(pred.actualResult.homeGoals);
+    const rawAwayGoals = Number(pred.actualResult.awayGoals);
+    if (
+      !isNaN(rawHomeGoals) && isFinite(rawHomeGoals) && rawHomeGoals >= 0 && rawHomeGoals <= 30 &&
+      !isNaN(rawAwayGoals) && isFinite(rawAwayGoals) && rawAwayGoals >= 0 && rawAwayGoals <= 30
+    ) {
+      const outcome = (pred.actualResult.outcome === 'HOME' || pred.actualResult.outcome === 'DRAW' || pred.actualResult.outcome === 'AWAY')
+        ? pred.actualResult.outcome
+        : (rawHomeGoals > rawAwayGoals ? 'HOME' : (rawHomeGoals === rawAwayGoals ? 'DRAW' : 'AWAY'));
+      
+      actualResult = {
+        homeGoals: Math.floor(rawHomeGoals),
+        awayGoals: Math.floor(rawAwayGoals),
+        outcome,
+        recordedAt: typeof pred.actualResult.recordedAt === 'string' ? pred.actualResult.recordedAt : new Date().toISOString()
+      };
+    }
+  }
+
+  // Build partial SavedPrediction to pass to evaluation if needed
+  const partialSavedPrediction: SavedPrediction = {
     id,
     dateTime,
     input,
     result
+  };
+
+  // Validate evaluation safely if present and actualResult is present
+  let evaluation: PredictionEvaluation | undefined = undefined;
+  if (actualResult) {
+    if (pred.evaluation && typeof pred.evaluation === 'object') {
+      const rawBrier = Number(pred.evaluation.brierScore);
+      const rawLogLoss = Number(pred.evaluation.logLoss);
+      const rawProb = Number(pred.evaluation.probabilityAssignedToActualOutcome);
+      
+      const predictedHomeGoals = Number(pred.evaluation.predictedHomeGoals);
+      const predictedAwayGoals = Number(pred.evaluation.predictedAwayGoals);
+      const actualHomeGoals = Number(pred.evaluation.actualHomeGoals);
+      const actualAwayGoals = Number(pred.evaluation.actualAwayGoals);
+      const absHomeErr = Number(pred.evaluation.absoluteHomeGoalsError);
+      const absAwayErr = Number(pred.evaluation.absoluteAwayGoalsError);
+      const totAbsErr = Number(pred.evaluation.totalGoalsAbsoluteError);
+
+      if (
+        !isNaN(rawBrier) && isFinite(rawBrier) &&
+        !isNaN(rawLogLoss) && isFinite(rawLogLoss) &&
+        !isNaN(rawProb) && isFinite(rawProb) &&
+        !isNaN(predictedHomeGoals) && isFinite(predictedHomeGoals) &&
+        !isNaN(predictedAwayGoals) && isFinite(predictedAwayGoals) &&
+        !isNaN(actualHomeGoals) && isFinite(actualHomeGoals) &&
+        !isNaN(actualAwayGoals) && isFinite(actualAwayGoals) &&
+        !isNaN(absHomeErr) && isFinite(absHomeErr) &&
+        !isNaN(absAwayErr) && isFinite(absAwayErr) &&
+        !isNaN(totAbsErr) && isFinite(totAbsErr)
+      ) {
+        evaluation = {
+          modelId: pred.evaluation.modelId || result.modelId,
+          modelName: pred.evaluation.modelName || result.modelName,
+          modelVersion: pred.evaluation.modelVersion || result.modelVersion,
+          predictedOutcome: (pred.evaluation.predictedOutcome === 'HOME' || pred.evaluation.predictedOutcome === 'DRAW' || pred.evaluation.predictedOutcome === 'AWAY')
+            ? pred.evaluation.predictedOutcome
+            : 'HOME',
+          actualOutcome: actualResult.outcome,
+          correct1X2: typeof pred.evaluation.correct1X2 === 'boolean' ? pred.evaluation.correct1X2 : false,
+          correctExactScore: typeof pred.evaluation.correctExactScore === 'boolean' ? pred.evaluation.correctExactScore : false,
+          brierScore: rawBrier,
+          logLoss: rawLogLoss,
+          probabilityAssignedToActualOutcome: rawProb,
+          predictedHomeGoals,
+          predictedAwayGoals,
+          actualHomeGoals,
+          actualAwayGoals,
+          absoluteHomeGoalsError: absHomeErr,
+          absoluteAwayGoalsError: absAwayErr,
+          totalGoalsAbsoluteError: totAbsErr,
+          evaluatedAt: typeof pred.evaluation.evaluatedAt === 'string' ? pred.evaluation.evaluatedAt : new Date().toISOString()
+        };
+      }
+    }
+
+    // Se actualResult è presente ma evaluation manca o è non valida, ricalcolala in modo sicuro
+    if (!evaluation) {
+      try {
+        evaluation = evaluatePrediction(partialSavedPrediction, actualResult);
+      } catch (e) {
+        console.error('Failed to recalculate evaluation during migration', e);
+      }
+    }
+  }
+
+  return {
+    ...partialSavedPrediction,
+    actualResult,
+    evaluation
   };
 }
 
