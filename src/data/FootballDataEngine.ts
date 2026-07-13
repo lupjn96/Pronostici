@@ -18,27 +18,42 @@ export class FootballDataEngine {
   private rawInput: any = null;
   private normalizedData: ModelInput | null = null;
   private features: MatchFeatures | null = null;
+  private validationResult: ValidationResult | null = null;
 
   /**
    * Carica i dati di input manuali forniti dal form.
    */
   loadManualInput(input: any): void {
     this.rawInput = input;
-    this.normalizedData = DataNormalizer.normalize(input);
-    this.features = FeatureBuilder.buildFeatures(this.normalizedData);
+    
+    // Valida prima il rawInput originale
+    const validation = this.validateRaw(input);
+    this.validationResult = validation;
+
+    if (!validation.isValid) {
+      this.normalizedData = null;
+      this.features = null;
+    } else {
+      // Genera i dati normalizzati e le feature solo se valido
+      this.normalizedData = DataNormalizer.normalize(input);
+      this.features = FeatureBuilder.buildFeatures(this.normalizedData, 'manual_input', true);
+    }
   }
 
   /**
    * Restituisce il match corrente sotto forma di MatchFeatures.
    */
   getCurrentMatch(): MatchFeatures | null {
-    return this.features;
+    return this.getFeatures();
   }
 
   /**
    * Restituisce le feature estratte e pronte per i modelli.
    */
   getFeatures(): MatchFeatures | null {
+    if (this.validationResult && !this.validationResult.isValid) {
+      return null;
+    }
     return this.features;
   }
 
@@ -50,13 +65,23 @@ export class FootballDataEngine {
   }
 
   /**
-   * Valida i dati correnti caricati nel motore.
+   * Valida l'input originale correntemente caricato nel motore.
    */
   validate(): ValidationResult {
+    if (this.validationResult) {
+      return this.validationResult;
+    }
+    return this.validateRaw(this.rawInput);
+  }
+
+  /**
+   * Valida il rawInput originale.
+   */
+  private validateRaw(raw: any): ValidationResult {
     const errors: Record<string, string> = {};
     const warnings: Record<string, string> = {};
 
-    if (!this.normalizedData) {
+    if (!raw) {
       return {
         isValid: false,
         errors: { general: 'Nessun dato di input caricato nel Football Data Engine.' },
@@ -64,71 +89,84 @@ export class FootballDataEngine {
       };
     }
 
-    const data = this.normalizedData;
+    // Nomi squadre obbligatori e diversi
+    const homeTeam = raw.homeTeam !== undefined && raw.homeTeam !== null ? String(raw.homeTeam).trim() : '';
+    const awayTeam = raw.awayTeam !== undefined && raw.awayTeam !== null ? String(raw.awayTeam).trim() : '';
 
-    // Controllo nomi squadre obbligatori
-    if (!data.homeTeam || !data.homeTeam.trim()) {
+    if (!homeTeam) {
       errors.homeTeam = 'Inserisci il nome della squadra di casa';
     }
-    if (!data.awayTeam || !data.awayTeam.trim()) {
+    if (!awayTeam) {
       errors.awayTeam = 'Inserisci il nome della squadra ospite';
     }
-    if (
-      data.homeTeam &&
-      data.awayTeam &&
-      data.homeTeam.trim().toLowerCase() === data.awayTeam.trim().toLowerCase()
-    ) {
+    if (homeTeam && awayTeam && homeTeam.toLowerCase() === awayTeam.toLowerCase()) {
       errors.awayTeam = 'La squadra di casa e quella ospite devono essere diverse';
     }
 
-    // Controlli per assenza di NaN e Infinity, e che i numeri siano finiti e non negativi (media gol >= 0)
-    const checkValidNumber = (val: number, field: string, label: string) => {
+    const parseRawValue = (val: any): number => {
+      if (val === undefined || val === null) return NaN;
+      if (typeof val === 'number') return val;
+      const str = String(val).trim().replace(',', '.');
+      if (str === '') return NaN;
+      return Number(str);
+    };
+
+    const validateGoalAvg = (val: any, field: string, label: string) => {
+      const num = parseRawValue(val);
       if (val === undefined || val === null) {
         errors[field] = `${label} è obbligatorio`;
-      } else if (isNaN(val) || !isFinite(val)) {
+      } else if (isNaN(num) || !isFinite(num)) {
         errors[field] = `${label} deve essere un numero valido e finito`;
-      } else if (val < 0) {
+      } else if (num < 0) {
         errors[field] = `${label} non può essere negativo`;
-      } else if (val > 10) {
+      } else if (num > 10) {
         warnings[field] = `${label} è molto alta (> 10). Assicurati che il valore sia corretto.`;
       }
     };
 
-    checkValidNumber(data.homeScoredAvg, 'homeScoredAvg', 'Media gol segnati in casa');
-    checkValidNumber(data.homeConcededAvg, 'homeConcededAvg', 'Media gol subiti in casa');
-    checkValidNumber(data.awayScoredAvg, 'awayScoredAvg', 'Media gol segnati in trasferta');
-    checkValidNumber(data.awayConcededAvg, 'awayConcededAvg', 'Media gol subiti in trasferta');
+    validateGoalAvg(raw.homeScoredAvg, 'homeScoredAvg', 'Media gol segnati in casa');
+    validateGoalAvg(raw.homeConcededAvg, 'homeConcededAvg', 'Media gol subiti in casa');
+    validateGoalAvg(raw.awayScoredAvg, 'awayScoredAvg', 'Media gol segnati in trasferta');
+    validateGoalAvg(raw.awayConcededAvg, 'awayConcededAvg', 'Media gol subiti in trasferta');
 
     // Medie gol del campionato (devono essere strettamente > 0)
-    if (data.leagueHomeScoredAvg === undefined || data.leagueHomeScoredAvg === null) {
-      errors.leagueHomeScoredAvg = 'La media gol in casa del campionato è obbligatoria';
-    } else if (isNaN(data.leagueHomeScoredAvg) || !isFinite(data.leagueHomeScoredAvg) || data.leagueHomeScoredAvg <= 0) {
-      errors.leagueHomeScoredAvg = 'La media gol in casa del campionato deve essere maggiore di zero e finita';
-    } else if (data.leagueHomeScoredAvg > 10) {
-      warnings.leagueHomeScoredAvg = 'La media gol in casa del campionato è insolitamente alta (> 10).';
-    }
+    const validateLeagueAvg = (val: any, field: string, label: string) => {
+      const num = parseRawValue(val);
+      if (val === undefined || val === null) {
+        errors[field] = `${label} è obbligatoria`;
+      } else if (isNaN(num) || !isFinite(num)) {
+        errors[field] = `${label} deve essere un numero valido e finito`;
+      } else if (num <= 0) {
+        errors[field] = `${label} deve essere maggiore di zero e finita`;
+      } else if (num > 10) {
+        warnings[field] = `${label} è insolitamente alta (> 10).`;
+      }
+    };
 
-    if (data.leagueAwayScoredAvg === undefined || data.leagueAwayScoredAvg === null) {
-      errors.leagueAwayScoredAvg = 'La media gol in trasferta del campionato è obbligatoria';
-    } else if (isNaN(data.leagueAwayScoredAvg) || !isFinite(data.leagueAwayScoredAvg) || data.leagueAwayScoredAvg <= 0) {
-      errors.leagueAwayScoredAvg = 'La media gol in trasferta del campionato deve essere maggiore di zero e finita';
-    } else if (data.leagueAwayScoredAvg > 10) {
-      warnings.leagueAwayScoredAvg = 'La media gol in trasferta del campionato è insolitamente alta (> 10).';
-    }
+    validateLeagueAvg(raw.leagueHomeScoredAvg, 'leagueHomeScoredAvg', 'La media gol in casa del campionato');
+    validateLeagueAvg(raw.leagueAwayScoredAvg, 'leagueAwayScoredAvg', 'La media gol in trasferta del campionato');
 
-    // Controllo partite giocate (matchesPlayed >= 1)
-    if (data.matchesPlayed === undefined || data.matchesPlayed === null) {
+    // Controllo partite giocate (matchesPlayed >= 1 e intero)
+    const matchesPlayedRaw = raw.matchesPlayed;
+    const matchesPlayedNum = parseRawValue(matchesPlayedRaw);
+    if (matchesPlayedRaw === undefined || matchesPlayedRaw === null) {
       errors.matchesPlayed = 'Il numero di partite giocate è obbligatorio';
-    } else if (isNaN(data.matchesPlayed) || !isFinite(data.matchesPlayed) || data.matchesPlayed < 1) {
+    } else if (isNaN(matchesPlayedNum) || !isFinite(matchesPlayedNum)) {
+      errors.matchesPlayed = 'Il numero di partite giocate deve essere un numero valido e finito';
+    } else if (matchesPlayedNum < 1) {
       errors.matchesPlayed = 'Il numero di partite giocate deve essere almeno 1';
-    } else if (!Number.isInteger(data.matchesPlayed)) {
+    } else if (!Number.isInteger(matchesPlayedNum)) {
       errors.matchesPlayed = 'Il numero di partite deve essere un numero intero';
     }
 
     // Controllo vantaggio casa (-100% a +200%)
-    if (data.homeAdvantage === undefined || data.homeAdvantage === null) {
+    const homeAdvantageRaw = raw.homeAdvantage;
+    const homeAdvantageNum = parseRawValue(homeAdvantageRaw);
+    if (homeAdvantageRaw === undefined || homeAdvantageRaw === null) {
       errors.homeAdvantage = 'La correzione manuale casa è obbligatoria';
-    } else if (isNaN(data.homeAdvantage) || !isFinite(data.homeAdvantage) || data.homeAdvantage < -100 || data.homeAdvantage > 200) {
+    } else if (isNaN(homeAdvantageNum) || !isFinite(homeAdvantageNum)) {
+      errors.homeAdvantage = 'La correzione manuale casa deve essere un numero valido e finito';
+    } else if (homeAdvantageNum < -100 || homeAdvantageNum > 200) {
       errors.homeAdvantage = 'La correzione manuale casa deve essere compresa tra -100% e +200%';
     }
 

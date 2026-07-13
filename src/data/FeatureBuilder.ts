@@ -11,7 +11,7 @@ export class FeatureBuilder {
    * Riceve i dati normalizzati e prepara le feature usate dagli algoritmi.
    * Per ora restituisce esattamente le feature già utilizzate da Poisson.
    */
-  static buildFeatures(normalized: ModelInput, dataSource: string = 'manual_input'): MatchFeatures {
+  static buildFeatures(normalized: ModelInput, dataSource: string = 'manual_input', modelReady: boolean = true): MatchFeatures {
     return {
       homeTeam: normalized.homeTeam,
       awayTeam: normalized.awayTeam,
@@ -25,7 +25,7 @@ export class FeatureBuilder {
       manualHomeAdjustment: normalized.homeAdvantage,
       timestamp: Date.now(),
       dataSource,
-      modelReady: true
+      modelReady
     };
   }
 }

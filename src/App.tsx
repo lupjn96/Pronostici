@@ -69,6 +69,15 @@ export default function App() {
       const model = getModelById(modelId);
       const engine = new FootballDataEngine();
       engine.loadManualInput(input);
+      
+      const validation = engine.validate();
+      if (!validation.isValid) {
+        const firstErrorKey = Object.keys(validation.errors)[0];
+        const errorMessage = validation.errors[firstErrorKey];
+        showToast(errorMessage || 'Dati di input non validi', 'error');
+        return;
+      }
+
       const features = engine.getFeatures();
       if (!features) {
         throw new Error('Errore nel caricamento delle feature dal Football Data Engine');

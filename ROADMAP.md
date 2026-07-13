@@ -8,10 +8,10 @@ Questo documento descrive l'architettura, le fasi evolutive e gli obiettivi futu
 
 ### Fase 1: Motore Matematico di Base (Completato)
 - **Modello di Poisson Standard (v1.1.0)**: Algoritmo classico basato sulle distribuzioni di Poisson indipendenti per stimare le probabilità degli esiti 1-X-2, Under/Over e Goal/NoGoal.
-- **Modello Poisson-Gamma Empirico (v0.1.0)**: Estensione bayesiana/empirica che modella l'incertezza sul parametro di intensità ($\lambda$) utilizzando la distribuzione Gamma basata sul volume dei dati storici disponibili (partite giocate).
+- **Modello Poisson-Gamma Empirico (v0.1.0)**: Estensione empirica che modella l'incertezza sul parametro di intensità ($\lambda$) utilizzando la distribuzione Gamma basata sul volume dei dati storici disponibili (partite giocate).
 - **Interfaccia Utente e Storico**: Form per l'inserimento manuale dei dati, calcolo interattivo e persistenza locale (`localStorage`) con gestione di esportazione/importazione e pulizia selettiva dei pronostici salvati.
 
-### Fase 2: Football Data Engine Indipendente (Completato)
+### Fase 2: Football Data Engine Indipendente (In validazione)
 - **Separazione dei Livelli**: Creazione di un livello intermedio indipendente tra l'input (UI, file, database o API) e i modelli predittivi.
 - **DataNormalizer**: Classe per la sanificazione automatica e il clipping di sicurezza dei dati per prevenire errori numerici (`NaN`, `Infinity`, valori negativi).
 - **FeatureBuilder**: Componente di estrazione delle caratteristiche fondamentali (`MatchFeatures`), traducendo i dati grezzi in un formato astratto standardizzato.
