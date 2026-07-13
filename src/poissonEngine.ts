@@ -5,6 +5,8 @@
 
 import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel, SavedPrediction } from './types';
 import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
+import { MatchFeatures } from './data/types';
+import { FootballDataEngine } from './data/FootballDataEngine';
 
 // 1. Funzione fattoriale
 export function factorial(n: number): number {
@@ -34,79 +36,9 @@ export interface ValidationResult {
 }
 
 export function validateInput(input: ModelInput): ValidationResult {
-  const errors: Record<string, string> = {};
-  const warnings: Record<string, string> = {};
-
-  if (!input.homeTeam.trim()) errors.homeTeam = 'Inserisci il nome della squadra di casa';
-  if (!input.awayTeam.trim()) errors.awayTeam = 'Inserisci il nome della squadra ospite';
-  if (input.homeTeam.trim() && input.awayTeam.trim() && input.homeTeam.trim().toLowerCase() === input.awayTeam.trim().toLowerCase()) {
-    errors.awayTeam = 'La squadra di casa e quella ospite devono essere diverse';
-  }
-
-  // Check per campi numerici validi, finiti, non NaN, e negativi
-  const checkValidNumber = (val: number, field: string, label: string) => {
-    if (isNaN(val) || !isFinite(val)) {
-      errors[field] = `${label} deve essere un numero valido e finito`;
-    } else if (val < 0) {
-      errors[field] = `${label} non può essere un valore negativo`;
-    } else if (val > 10) {
-      warnings[field] = `${label} è molto alta (> 10). Assicurati che il valore sia corretto.`;
-    }
-  };
-
-  checkValidNumber(input.homeScoredAvg, 'homeScoredAvg', 'Media gol segnati in casa');
-  checkValidNumber(input.homeConcededAvg, 'homeConcededAvg', 'Media gol subiti in casa');
-  checkValidNumber(input.awayScoredAvg, 'awayScoredAvg', 'Media gol segnati in trasferta');
-  checkValidNumber(input.awayConcededAvg, 'awayConcededAvg', 'Media gol subiti in trasferta');
-  
-  // Controlli divisione per zero e validità per il campionato
-  if (isNaN(input.leagueHomeScoredAvg) || !isFinite(input.leagueHomeScoredAvg) || input.leagueHomeScoredAvg <= 0) {
-    errors.leagueHomeScoredAvg = 'La media gol in casa del campionato deve essere maggiore di zero e finita';
-  } else if (input.leagueHomeScoredAvg > 10) {
-    warnings.leagueHomeScoredAvg = 'La media gol in casa del campionato è insolitamente alta (> 10).';
-  }
-
-  if (isNaN(input.leagueAwayScoredAvg) || !isFinite(input.leagueAwayScoredAvg) || input.leagueAwayScoredAvg <= 0) {
-    errors.leagueAwayScoredAvg = 'La media gol in trasferta del campionato deve essere maggiore di zero e finita';
-  } else if (input.leagueAwayScoredAvg > 10) {
-    warnings.leagueAwayScoredAvg = 'La media gol in trasferta del campionato è insolitamente alta (> 10).';
-  }
-
-  // Controllo partite giocate
-  if (isNaN(input.matchesPlayed) || !isFinite(input.matchesPlayed) || input.matchesPlayed < 1) {
-    errors.matchesPlayed = 'Il numero di partite giocate deve essere almeno 1';
-  } else if (!Number.isInteger(input.matchesPlayed)) {
-    errors.matchesPlayed = 'Il numero di partite deve essere un numero intero';
-  }
-
-  // Controllo vantaggio casa (correzione manuale casa)
-  if (isNaN(input.homeAdvantage) || !isFinite(input.homeAdvantage) || input.homeAdvantage < -100 || input.homeAdvantage > 200) {
-    errors.homeAdvantage = 'La correzione manuale casa deve essere compresa tra -100% e +200%';
-  }
-
-  // Controllo preventivo per lambde (gol attesi) superiori a 10
-  if (Object.keys(errors).length === 0) {
-    const lambdaHome = (input.leagueHomeScoredAvg > 0)
-      ? (input.homeScoredAvg / input.leagueHomeScoredAvg) * (input.awayConcededAvg / input.leagueHomeScoredAvg) * input.leagueHomeScoredAvg * (input.homeAdvantage !== 0 ? (1 + input.homeAdvantage / 100) : 1)
-      : (input.homeScoredAvg + input.awayConcededAvg) / 2;
-
-    const lambdaAway = (input.leagueAwayScoredAvg > 0)
-      ? (input.awayScoredAvg / input.leagueAwayScoredAvg) * (input.homeConcededAvg / input.leagueAwayScoredAvg) * input.leagueAwayScoredAvg
-      : (input.awayScoredAvg + input.homeConcededAvg) / 2;
-
-    if (lambdaHome > 10) {
-      warnings.lambdaHome = `I gol attesi stimati per la squadra di casa (${lambdaHome.toFixed(2)}) sono superiori a 10. Il modello potrebbe perdere precisione.`;
-    }
-    if (lambdaAway > 10) {
-      warnings.lambdaAway = `I gol attesi stimati per la squadra ospite (${lambdaAway.toFixed(2)}) sono superiori a 10. Il modello potrebbe perdere precisione.`;
-    }
-  }
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors,
-    warnings
-  };
+  const engine = new FootballDataEngine();
+  engine.loadManualInput(input);
+  return engine.validate();
 }
 
 // Modello di previsione basato sulla distribuzione di Poisson v1.1
@@ -115,9 +47,9 @@ export const poissonModel: PredictionModel = {
   name: 'Poisson standard',
   description: 'Usa la classica distribuzione di Poisson per stimare le probabilità basandosi sulle medie storiche offensive e difensive dei team, pesate per le medie del campionato e l\'eventuale correzione manuale casa.',
   status: 'active',
-  calculate: (input: ModelInput): PredictionResult => {
+  calculate: (features: MatchFeatures): PredictionResult => {
     // 3. Calcolo dei gol attesi casa e ospite tramite modulo condiviso
-    const { homeExpectedGoals, awayExpectedGoals } = calculateExpectedGoals(input);
+    const { homeExpectedGoals, awayExpectedGoals } = calculateExpectedGoals(features);
 
     // Costruiamo una griglia 13x13 per calcolare 1-X-2 con elevata accuratezza (0-12 gol)
     const CALC_LIMIT = 12;
@@ -269,7 +201,7 @@ export const poissonModel: PredictionModel = {
     // • 10-19 partite: max 75
     // • da 20 partite in poi: max 100
     let dataQuality = 0;
-    const M = input.matchesPlayed;
+    const M = features.matchesPlayed;
     if (M <= 4) {
       dataQuality = M * 6.25; // a 4 partite è 25
     } else if (M <= 9) {

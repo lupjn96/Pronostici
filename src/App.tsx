@@ -15,6 +15,7 @@ import Settings from './components/Settings';
 import { ModelInput, PredictionResult, SavedPrediction, MODEL_VERSION } from './types';
 import { migrateSavedPrediction } from './poissonEngine';
 import { getModelById } from './modelRegistry';
+import { FootballDataEngine } from './data/FootballDataEngine';
 import { Sparkles, Calculator, ChevronLeft, ShieldAlert, CheckCircle } from 'lucide-react';
 
 export default function App() {
@@ -66,7 +67,13 @@ export default function App() {
   const handleCalculate = (input: ModelInput, modelId: string = 'poisson-standard') => {
     try {
       const model = getModelById(modelId);
-      const result = model.calculate(input);
+      const engine = new FootballDataEngine();
+      engine.loadManualInput(input);
+      const features = engine.getFeatures();
+      if (!features) {
+        throw new Error('Errore nel caricamento delle feature dal Football Data Engine');
+      }
+      const result = model.calculate(features);
       setActiveInput(input);
       setActiveResult(result);
       setActiveModelId(modelId);

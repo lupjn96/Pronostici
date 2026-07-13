@@ -6,6 +6,19 @@
 import { poissonGammaModel } from './poissonGammaEngine';
 import { poissonModel } from './poissonEngine';
 import { ModelInput } from './types';
+import { FootballDataEngine } from './data/FootballDataEngine';
+
+function calculatePoisson(input: ModelInput) {
+  const engine = new FootballDataEngine();
+  engine.loadManualInput(input);
+  return poissonModel.calculate(engine.getFeatures()!);
+}
+
+function calculatePoissonGamma(input: ModelInput) {
+  const engine = new FootballDataEngine();
+  engine.loadManualInput(input);
+  return poissonGammaModel.calculate(engine.getFeatures()!);
+}
 
 export interface TestResult {
   name: string;
@@ -34,7 +47,7 @@ export function runPoissonGammaValidation(): TestResult[] {
       homeAdvantage: 0
     };
 
-    const resA = poissonGammaModel.calculate(inputA);
+    const resA = calculatePoissonGamma(inputA);
     const tol = 0.0001;
     const checkTol = (val: number, expected: number) => Math.abs(val - expected) < tol;
 
@@ -88,8 +101,8 @@ export function runPoissonGammaValidation(): TestResult[] {
       matchesPlayed: 30 // High matches played
     };
 
-    const resLow = poissonGammaModel.calculate(inputLowVolume);
-    const resHigh = poissonGammaModel.calculate(inputHighVolume);
+    const resLow = calculatePoissonGamma(inputLowVolume);
+    const resHigh = calculatePoissonGamma(inputHighVolume);
 
     const varLowHome = resLow.parameterUncertainty?.homeLambdaVariance ?? 0;
     const varHighHome = resHigh.parameterUncertainty?.homeLambdaVariance ?? 0;
@@ -129,8 +142,8 @@ export function runPoissonGammaValidation(): TestResult[] {
       homeAdvantage: 0
     };
 
-    const resPoisson = poissonModel.calculate(inputC);
-    const resBayesian = poissonGammaModel.calculate(inputC);
+    const resPoisson = calculatePoisson(inputC);
+    const resBayesian = calculatePoissonGamma(inputC);
 
     const maxProbPoisson = resPoisson.exactScores[0].probability;
     const maxProbBayesian = resBayesian.exactScores[0].probability;
@@ -167,7 +180,7 @@ export function runPoissonGammaValidation(): TestResult[] {
       homeAdvantage: 0
     };
 
-    const resD = poissonGammaModel.calculate(inputD);
+    const resD = calculatePoissonGamma(inputD);
 
     const sum1X2 = resD.probHomeWin + resD.probDraw + resD.probAwayWin;
     const isSum1X2Correct = Math.abs(sum1X2 - 100) < 0.0001;
@@ -214,7 +227,7 @@ export function runPoissonGammaValidation(): TestResult[] {
       homeAdvantage: 100
     };
 
-    const resHigh = poissonGammaModel.calculate(inputHigh);
+    const resHigh = calculatePoissonGamma(inputHigh);
 
     const isValidPct = (val: number | undefined): boolean => {
       if (val === undefined) return false;

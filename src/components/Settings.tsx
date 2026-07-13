@@ -8,6 +8,7 @@ import { Trash2, Download, Upload, Check, AlertTriangle, HelpCircle, Save, Datab
 import { SavedPrediction, MODEL_VERSION } from '../types';
 import { runDiagnostics, TestResult } from '../poissonEngine.validation';
 import { runPoissonGammaValidation } from '../poissonGammaEngine.validation';
+import { runDataEngineValidation } from '../data/FootballDataEngine.validation';
 
 interface SettingsProps {
   onClearHistory: () => void;
@@ -30,7 +31,8 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
   const handleRunDiag = () => {
     const poissonResults = runDiagnostics().map(t => ({ ...t, model: 'Poisson Standard v1.1.0' }));
     const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Empirico v0.1.0' }));
-    setDiagResults([...poissonResults, ...gammaResults]);
+    const dataEngineResults = runDataEngineValidation().map(t => ({ ...t, model: 'Football Data Engine v1.0.0' }));
+    setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults]);
   };
 
   useEffect(() => {

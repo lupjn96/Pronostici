@@ -5,6 +5,7 @@
 
 import { ModelInput, PredictionResult, ExactScoreProb, PredictionModel } from './types';
 import { calculateExpectedGoals } from './engines/sharedExpectedGoals';
+import { MatchFeatures } from './data/types';
 
 // 1. Funzione log-Gamma (per precisione e stabilità numerica ad ampi input)
 export function logGamma(z: number): number {
@@ -60,11 +61,11 @@ export const poissonGammaModel: PredictionModel = {
   name: 'Poisson-Gamma Empirico',
   description: 'Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente in funzione del numero di partite disponibili.',
   status: 'active',
-  calculate: (input: ModelInput): PredictionResult => {
-    // Calcolo dei gol attesi (media lambda stimata come Poisson standard)
-    const { homeExpectedGoals, awayExpectedGoals } = calculateExpectedGoals(input);
+  calculate: (features: MatchFeatures): PredictionResult => {
+    // Calcolo dei gol attesi (media lambda stimata como Poisson standard)
+    const { homeExpectedGoals, awayExpectedGoals } = calculateExpectedGoals(features);
 
-    const matchesPlayedSafe = Math.max(input.matchesPlayed, 1);
+    const matchesPlayedSafe = Math.max(features.matchesPlayed, 1);
 
     // Calcolo parametri Gamma per la squadra di casa
     let homeLambdaVariance = 0;
@@ -245,7 +246,7 @@ export const poissonGammaModel: PredictionModel = {
 
     // Qualità dei dati basata sulle partite giocate:
     let dataQuality = 0;
-    const M = input.matchesPlayed;
+    const M = features.matchesPlayed;
     if (M <= 4) {
       dataQuality = M * 6.25;
     } else if (M <= 9) {

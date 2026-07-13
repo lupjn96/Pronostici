@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatchFeatures } from './data/types';
+
 export const MODEL_VERSION = '1.1.0';
 
 export interface ModelInput {
@@ -17,6 +19,7 @@ export interface ModelInput {
   matchesPlayed: number;
   homeAdvantage: number; // Percentaggio aggiuntivo di vantaggio in casa, es: 10 per +10%
 }
+
 
 export interface ExactScoreProb {
   score: string; // es: "1-0"
@@ -75,7 +78,7 @@ export interface PredictionModel {
   name: string;
   description: string;
   status: 'active' | 'inactive';
-  calculate: (input: ModelInput) => PredictionResult;
+  calculate: (features: MatchFeatures) => PredictionResult;
 }
 
 export interface SavedPrediction {

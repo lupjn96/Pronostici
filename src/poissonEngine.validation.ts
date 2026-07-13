@@ -1,5 +1,12 @@
 import { poissonModel } from './poissonEngine';
 import { ModelInput } from './types';
+import { FootballDataEngine } from './data/FootballDataEngine';
+
+function calculatePoisson(input: ModelInput) {
+  const engine = new FootballDataEngine();
+  engine.loadManualInput(input);
+  return poissonModel.calculate(engine.getFeatures()!);
+}
 
 export interface TestResult {
   name: string;
@@ -31,7 +38,7 @@ export function runDiagnostics(): TestResult[] {
       homeAdvantage: 0
     };
 
-    const res = poissonModel.calculate(inputZero);
+    const res = calculatePoisson(inputZero);
     const hasNaN = [
       res.homeExpectedGoals, res.awayExpectedGoals,
       res.probHomeWin, res.probDraw, res.probAwayWin,
@@ -92,7 +99,7 @@ export function runDiagnostics(): TestResult[] {
       homeAdvantage: 0 // Vantaggio casa nullo per garantire perfetta simmetria
     };
 
-    const res = poissonModel.calculate(inputEqual);
+    const res = calculatePoisson(inputEqual);
     const xGEqual = Math.abs(res.homeExpectedGoals - res.awayExpectedGoals) < 1e-9;
     const probsEqual = Math.abs(res.probHomeWin - res.probAwayWin) < 1e-9;
 
@@ -132,7 +139,7 @@ export function runDiagnostics(): TestResult[] {
       homeAdvantage: 0
     };
 
-    const res = poissonModel.calculate(inputExtreme);
+    const res = calculatePoisson(inputExtreme);
     const isSane = [
       res.homeExpectedGoals, res.awayExpectedGoals,
       res.probHomeWin, res.probDraw, res.probAwayWin
@@ -166,7 +173,7 @@ export function runDiagnostics(): TestResult[] {
     let worstError = 0;
 
     for (const inp of inputsToTest) {
-      const res = poissonModel.calculate(inp);
+      const res = calculatePoisson(inp);
       const sum = res.probHomeWin + res.probDraw + res.probAwayWin;
       const diff = Math.abs(sum - 100);
       if (diff > worstError) worstError = diff;
@@ -203,7 +210,7 @@ export function runDiagnostics(): TestResult[] {
     let worstError = 0;
 
     for (const inp of inputsToTest) {
-      const res = poissonModel.calculate(inp);
+      const res = calculatePoisson(inp);
       const sum = res.over25 + res.under25;
       const diff = Math.abs(sum - 100);
       if (diff > worstError) worstError = diff;
@@ -240,7 +247,7 @@ export function runDiagnostics(): TestResult[] {
     let worstError = 0;
 
     for (const inp of inputsToTest) {
-      const res = poissonModel.calculate(inp);
+      const res = calculatePoisson(inp);
       const sum = res.goal + res.noGoal;
       const diff = Math.abs(sum - 100);
       if (diff > worstError) worstError = diff;
@@ -277,7 +284,7 @@ export function runDiagnostics(): TestResult[] {
     let worstError = 0;
 
     for (const inp of inputsToTest) {
-      const res = poissonModel.calculate(inp);
+      const res = calculatePoisson(inp);
       const diag = res.calculationDiagnostics;
       
       const massInBounds = diag.gridProbabilityMass >= 0 && diag.gridProbabilityMass <= 1;
