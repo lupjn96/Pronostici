@@ -9,6 +9,7 @@ import { SavedPrediction, MODEL_VERSION } from '../types';
 import { runDiagnostics, TestResult } from '../poissonEngine.validation';
 import { runPoissonGammaValidation } from '../poissonGammaEngine.validation';
 import { runDataEngineValidation } from '../data/FootballDataEngine.validation';
+import { runDixonColesValidation } from '../dixonColes.validation';
 
 interface SettingsProps {
   onClearHistory: () => void;
@@ -32,7 +33,8 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
     const poissonResults = runDiagnostics().map(t => ({ ...t, model: 'Poisson Standard v1.1.0' }));
     const gammaResults = runPoissonGammaValidation().map(t => ({ ...t, model: 'Poisson-Gamma Empirico v0.1.0' }));
     const dataEngineResults = runDataEngineValidation().map(t => ({ ...t, model: 'Football Data Engine v1.0.0' }));
-    setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults]);
+    const dixonColesResults = runDixonColesValidation().map(t => ({ ...t, model: 'Dixon-Coles v1.0.0' }));
+    setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults, ...dixonColesResults]);
   };
 
   useEffect(() => {

@@ -149,11 +149,11 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-3">
           Modello di Calcolo Attivo
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <button
             type="button"
             onClick={() => setSelectedModelId('poisson-standard')}
-            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between h-28 cursor-pointer ${
+            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[7rem] h-auto cursor-pointer ${
               selectedModelId === 'poisson-standard'
                 ? 'border-emerald-500/40 bg-slate-800/40 ring-1 ring-emerald-500/10'
                 : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'
@@ -187,11 +187,34 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
                 Poisson-Gamma Empirico v0.1.0
               </span>
               <span className="text-[10px] text-slate-400 mt-1 block leading-normal">
-                Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente in funzione del numero di partite disponibili.
+                Modello Poisson-Gamma che rappresenta lambda come parametro incerto. La varianza iniziale è stimata empiricamente.
               </span>
             </div>
             <div className="flex items-center gap-1.5 self-end mt-2">
               <span className={`w-1.5 h-1.5 rounded-full ${selectedModelId === 'poisson-gamma' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Selezionato</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedModelId('dixon-coles')}
+            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[7rem] h-auto cursor-pointer ${
+              selectedModelId === 'dixon-coles'
+                ? 'border-emerald-500/40 bg-slate-800/40 ring-1 ring-emerald-500/10'
+                : 'border-slate-700 bg-slate-900/40 hover:border-slate-600'
+            }`}
+          >
+            <div>
+              <span className={`block text-xs font-bold ${selectedModelId === 'dixon-coles' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                Dixon-Coles v1.0.0
+              </span>
+              <span className="text-[10px] text-slate-400 mt-1 block leading-normal">
+                Corregge la sottostima dei pareggi e dei punteggi bassi (0-0, 1-0, 0-1, 1-1) introducendo il parametro di dipendenza rho.
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 self-end mt-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedModelId === 'dixon-coles' ? 'bg-emerald-400' : 'bg-slate-600'}`} />
               <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Selezionato</span>
             </div>
           </button>
@@ -202,6 +225,15 @@ export default function PredictionForm({ onCalculate, initialInput, initialModel
             <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
             <span>
               Questa versione stima l’incertezza di lambda in modo empirico sulla base del numero di partite. Non utilizza ancora un vero aggiornamento bayesiano basato sui gol osservati.
+            </span>
+          </div>
+        )}
+
+        {selectedModelId === 'dixon-coles' && (
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[11px] text-slate-300 leading-normal flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+            <span>
+              Questo modello corregge le probabilità di Poisson per punteggi bassi usando il parametro di dipendenza rho = -0.08 per dare una stima migliore dei pareggi e partite equilibrate.
             </span>
           </div>
         )}

@@ -364,6 +364,65 @@ export default function PredictionResults({ input, result }: PredictionResultsPr
         </div>
       )}
 
+      {/* Sezione Parametri Dixon-Coles */}
+      {result.modelId === 'dixon-coles' && (
+        <div className="bg-[#1e293b] rounded-2xl border border-slate-700 p-6 shadow-xl space-y-6">
+          <div className="border-b border-slate-700 pb-3 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Parametri del Modello Dixon-Coles</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                Il modello Dixon-Coles introduce un parametro di dipendenza per correggere la distribuzione congiunta per i punteggi più bassi.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                  Parametro Dipendenza (ρ)
+                </span>
+                <span className="text-3xl font-black font-mono text-emerald-400 mt-2 block">
+                  -0.080
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed mt-3">
+                <span className="font-bold text-emerald-400">ρ (rho)</span> corregge la dipendenza tra i gol delle due squadre nei risultati a basso punteggio.
+              </p>
+            </div>
+
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase block border-b border-slate-850 pb-1.5 mb-2">
+                  Correzione Risultati Bassi
+                </span>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  I risultati <span className="font-mono text-emerald-400 font-semibold">0-0, 1-0, 0-1, 1-1</span> vengono corretti con un fattore <span className="font-mono font-semibold">tau</span> calcolato a partire da ρ.
+                </p>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 text-center font-mono mt-3 text-[10px]">
+                <div className="bg-slate-900 p-1 rounded border border-slate-800">
+                  <div className="text-slate-500 text-[8px]">0-0</div>
+                  <div className="text-emerald-400 font-bold">1 - λμρ</div>
+                </div>
+                <div className="bg-slate-900 p-1 rounded border border-slate-800">
+                  <div className="text-slate-500 text-[8px]">1-0</div>
+                  <div className="text-emerald-400 font-bold">1 + λρ</div>
+                </div>
+                <div className="bg-slate-900 p-1 rounded border border-slate-800">
+                  <div className="text-slate-500 text-[8px]">0-1</div>
+                  <div className="text-emerald-400 font-bold">1 + μρ</div>
+                </div>
+                <div className="bg-slate-900 p-1 rounded border border-slate-800">
+                  <div className="text-slate-500 text-[8px]">1-1</div>
+                  <div className="text-emerald-400 font-bold">1 - ρ</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Matrice dei Risultati Esatti (Heatmap 7x7) */}
       <div className="p-5 rounded-xl border border-slate-700 bg-slate-800/40">
         <div className="flex items-center justify-between mb-4">

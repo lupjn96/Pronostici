@@ -6,10 +6,12 @@
 import { PredictionModel } from './types';
 import { poissonModel } from './poissonEngine';
 import { poissonGammaModel } from './poissonGammaEngine';
+import { dixonColesModel } from './dixonColesEngine';
 
 export const availableModels: PredictionModel[] = [
   poissonModel,
-  poissonGammaModel
+  poissonGammaModel,
+  dixonColesModel
 ];
 
 export function getModelById(id: string): PredictionModel {
