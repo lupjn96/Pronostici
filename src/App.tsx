@@ -11,8 +11,10 @@ import PredictionResults from './components/PredictionResults';
 import HistoryList from './components/HistoryList';
 import ModelComparison from './components/ModelComparison';
 import Settings from './components/Settings';
+import { PerformanceDashboard } from './components/PerformanceDashboard';
 
-import { ModelInput, PredictionResult, SavedPrediction, MODEL_VERSION } from './types';
+import { ModelInput, PredictionResult, SavedPrediction, ActualMatchResult, MODEL_VERSION } from './types';
+import { getOutcome, evaluatePrediction } from './performance/PerformanceEngine';
 import { migrateSavedPrediction } from './poissonEngine';
 import { getModelById } from './modelRegistry';
 import { FootballDataEngine } from './data/FootballDataEngine';
@@ -138,6 +140,48 @@ export default function App() {
     setActivePredictionId(null);
 
     showToast('Tutti i pronostici sono stati eliminati.');
+  };
+
+  // Salva un risultato reale ed effettua la valutazione delle prestazioni del modello
+  const handleSaveResult = (id: string, homeGoals: number, awayGoals: number) => {
+    setHistory(previousHistory => {
+      const updatedHistory = previousHistory.map(pred => {
+        if (pred.id === id) {
+          const actualResult: ActualMatchResult = {
+            homeGoals,
+            awayGoals,
+            outcome: getOutcome(homeGoals, awayGoals),
+            recordedAt: new Date().toISOString()
+          };
+          const evaluation = evaluatePrediction(pred, actualResult);
+          return {
+            ...pred,
+            actualResult,
+            evaluation
+          };
+        }
+        return pred;
+      });
+      localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
+      return updatedHistory;
+    });
+    showToast('Risultato registrato e modello valutato.');
+  };
+
+  // Rimuove un risultato reale e la valutazione associata
+  const handleRemoveResult = (id: string) => {
+    setHistory(previousHistory => {
+      const updatedHistory = previousHistory.map(pred => {
+        if (pred.id === id) {
+          const { actualResult, evaluation, ...rest } = pred;
+          return rest;
+        }
+        return pred;
+      });
+      localStorage.setItem('football_lab_history', JSON.stringify(updatedHistory));
+      return updatedHistory;
+    });
+    showToast('Risultato rimosso.');
   };
 
   // Importazione dati JSON esterni
@@ -290,7 +334,13 @@ export default function App() {
             onDelete={handleDeletePrediction}
             onOpen={handleOpenSaved}
             onClearAll={handleClearHistory}
+            onSaveResult={handleSaveResult}
+            onRemoveResult={handleRemoveResult}
           />
+        )}
+
+        {section === 'performance' && (
+          <PerformanceDashboard predictions={history} />
         )}
 
         {section === 'models' && <ModelComparison />}
