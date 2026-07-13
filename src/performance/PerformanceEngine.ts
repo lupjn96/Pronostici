@@ -42,7 +42,10 @@ export function evaluatePrediction(
 ): PredictionEvaluation {
   const result = savedPrediction.result;
   const predictedOutcome = getPredictedOutcome(result);
-  const actualOutcome = actualResult.outcome;
+  const actualOutcome = getOutcome(
+    actualResult.homeGoals,
+    actualResult.awayGoals
+  );
 
   const correct1X2 = predictedOutcome === actualOutcome;
 
@@ -54,14 +57,14 @@ export function evaluatePrediction(
                         topScore.awayGoals === actualResult.awayGoals;
   }
 
-  // Probabilità assegnata all'esito reale (in percentuale da 0 a 100)
+  // Probabilità assegnata all'esito reale (in scala da 0 a 1)
   let probabilityAssignedToActualOutcome = 0;
   if (actualOutcome === 'HOME') {
-    probabilityAssignedToActualOutcome = result.probHomeWin;
+    probabilityAssignedToActualOutcome = result.probHomeWin / 100;
   } else if (actualOutcome === 'DRAW') {
-    probabilityAssignedToActualOutcome = result.probDraw;
+    probabilityAssignedToActualOutcome = result.probDraw / 100;
   } else {
-    probabilityAssignedToActualOutcome = result.probAwayWin;
+    probabilityAssignedToActualOutcome = result.probAwayWin / 100;
   }
 
   // 1. Calcolo Brier Score (scala 0-1 per le probabilità)
@@ -76,9 +79,11 @@ export function evaluatePrediction(
   const brierScore = Math.pow(pHome - yHome, 2) + Math.pow(pDraw - yDraw, 2) + Math.pow(pAway - yAway, 2);
 
   // 2. Calcolo Log Loss con protezione numerica
-  const pFrac = probabilityAssignedToActualOutcome / 100;
   const epsilon = 1e-15;
-  const protectedProb = Math.max(epsilon, Math.min(1 - epsilon, pFrac));
+  const protectedProb = Math.max(
+    epsilon,
+    Math.min(1 - epsilon, probabilityAssignedToActualOutcome)
+  );
   const logLoss = -Math.log(protectedProb);
 
   // 3. Calcolo Errori sui gol

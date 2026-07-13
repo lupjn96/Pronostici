@@ -380,63 +380,10 @@ export function migrateSavedPrediction(pred: any): SavedPrediction {
   // Validate evaluation safely if present and actualResult is present
   let evaluation: PredictionEvaluation | undefined = undefined;
   if (actualResult) {
-    if (pred.evaluation && typeof pred.evaluation === 'object') {
-      const rawBrier = Number(pred.evaluation.brierScore);
-      const rawLogLoss = Number(pred.evaluation.logLoss);
-      const rawProb = Number(pred.evaluation.probabilityAssignedToActualOutcome);
-      
-      const predictedHomeGoals = Number(pred.evaluation.predictedHomeGoals);
-      const predictedAwayGoals = Number(pred.evaluation.predictedAwayGoals);
-      const actualHomeGoals = Number(pred.evaluation.actualHomeGoals);
-      const actualAwayGoals = Number(pred.evaluation.actualAwayGoals);
-      const absHomeErr = Number(pred.evaluation.absoluteHomeGoalsError);
-      const absAwayErr = Number(pred.evaluation.absoluteAwayGoalsError);
-      const totAbsErr = Number(pred.evaluation.totalGoalsAbsoluteError);
-
-      if (
-        !isNaN(rawBrier) && isFinite(rawBrier) &&
-        !isNaN(rawLogLoss) && isFinite(rawLogLoss) &&
-        !isNaN(rawProb) && isFinite(rawProb) &&
-        !isNaN(predictedHomeGoals) && isFinite(predictedHomeGoals) &&
-        !isNaN(predictedAwayGoals) && isFinite(predictedAwayGoals) &&
-        !isNaN(actualHomeGoals) && isFinite(actualHomeGoals) &&
-        !isNaN(actualAwayGoals) && isFinite(actualAwayGoals) &&
-        !isNaN(absHomeErr) && isFinite(absHomeErr) &&
-        !isNaN(absAwayErr) && isFinite(absAwayErr) &&
-        !isNaN(totAbsErr) && isFinite(totAbsErr)
-      ) {
-        evaluation = {
-          modelId: pred.evaluation.modelId || result.modelId,
-          modelName: pred.evaluation.modelName || result.modelName,
-          modelVersion: pred.evaluation.modelVersion || result.modelVersion,
-          predictedOutcome: (pred.evaluation.predictedOutcome === 'HOME' || pred.evaluation.predictedOutcome === 'DRAW' || pred.evaluation.predictedOutcome === 'AWAY')
-            ? pred.evaluation.predictedOutcome
-            : 'HOME',
-          actualOutcome: actualResult.outcome,
-          correct1X2: typeof pred.evaluation.correct1X2 === 'boolean' ? pred.evaluation.correct1X2 : false,
-          correctExactScore: typeof pred.evaluation.correctExactScore === 'boolean' ? pred.evaluation.correctExactScore : false,
-          brierScore: rawBrier,
-          logLoss: rawLogLoss,
-          probabilityAssignedToActualOutcome: rawProb,
-          predictedHomeGoals,
-          predictedAwayGoals,
-          actualHomeGoals,
-          actualAwayGoals,
-          absoluteHomeGoalsError: absHomeErr,
-          absoluteAwayGoalsError: absAwayErr,
-          totalGoalsAbsoluteError: totAbsErr,
-          evaluatedAt: typeof pred.evaluation.evaluatedAt === 'string' ? pred.evaluation.evaluatedAt : new Date().toISOString()
-        };
-      }
-    }
-
-    // Se actualResult è presente ma evaluation manca o è non valida, ricalcolala in modo sicuro
-    if (!evaluation) {
-      try {
-        evaluation = evaluatePrediction(partialSavedPrediction, actualResult);
-      } catch (e) {
-        console.error('Failed to recalculate evaluation during migration', e);
-      }
+    try {
+      evaluation = evaluatePrediction(partialSavedPrediction, actualResult);
+    } catch (e) {
+      console.error('Failed to recalculate evaluation during migration', e);
     }
   }
 

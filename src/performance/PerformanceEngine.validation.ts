@@ -106,13 +106,13 @@ export function runPerformanceValidation(): TestResult[] {
     const passed = evaluation.predictedOutcome === 'HOME' &&
                    evaluation.actualOutcome === 'HOME' &&
                    evaluation.correct1X2 === true &&
-                   evaluation.probabilityAssignedToActualOutcome === 60;
+                   Math.abs(evaluation.probabilityAssignedToActualOutcome - 0.6) < 1e-9;
 
     results.push({
       name: 'TEST B: Valutazione pronostico corretto (HOME)',
       passed,
       message: passed
-        ? `Successo: Previsto ${evaluation.predictedOutcome}, Effettivo ${evaluation.actualOutcome}, Corretto ${evaluation.correct1X2}, Probabilità assegnata ${evaluation.probabilityAssignedToActualOutcome}%`
+        ? `Successo: Previsto ${evaluation.predictedOutcome}, Effettivo ${evaluation.actualOutcome}, Corretto ${evaluation.correct1X2}, Probabilità assegnata ${evaluation.probabilityAssignedToActualOutcome}`
         : `Fallimento: prev=${evaluation.predictedOutcome}, eff=${evaluation.actualOutcome}, corr=${evaluation.correct1X2}, prob=${evaluation.probabilityAssignedToActualOutcome}`
     });
   } catch (err: any) {
@@ -407,7 +407,7 @@ export function runPerformanceValidation(): TestResult[] {
                    migratedPart.evaluation?.correctExactScore === true &&
                    migratedFull.actualResult !== undefined &&
                    migratedFull.evaluation !== undefined &&
-                   migratedFull.evaluation?.brierScore === 0.1;
+                   Math.abs((migratedFull.evaluation?.brierScore || 0) - 0.38) < 1e-9;
 
     results.push({
       name: 'TEST H: Migrazione record e ricalcolo di valutazioni mancanti',

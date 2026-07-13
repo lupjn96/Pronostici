@@ -122,7 +122,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ pred
                   Classifica preliminare sui dati valutati
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Ordinamento principale per Log Loss decrescente (valore minore = migliore), seguito da Brier Score e accuratezza 1-X-2.
+                  Ordinamento principale per Log Loss crescente (valore minore = migliore), seguito da Brier Score e accuratezza 1-X-2.
                 </p>
               </div>
             </div>
@@ -151,7 +151,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ pred
                       const rankBadge = idx < 3 ? rankColors[idx] : 'bg-slate-800 text-slate-400 border border-slate-700';
 
                       return (
-                        <tr key={model.modelId} className="hover:bg-slate-800/20 transition-colors">
+                        <tr key={`${model.modelId}::${model.modelVersion}`} className="hover:bg-slate-800/20 transition-colors">
                           <td className="p-4 text-center">
                             <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg font-bold ${rankBadge}`}>
                               {idx + 1}
@@ -227,7 +227,7 @@ export const PerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ pred
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {performanceSummaries.map((model) => (
               <div 
-                key={model.modelId} 
+                key={`${model.modelId}::${model.modelVersion}`} 
                 className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-6 space-y-6 flex flex-col justify-between"
               >
                 {/* Nome Modello e Info Generali */}
