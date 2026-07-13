@@ -12,6 +12,7 @@ import { runDataEngineValidation } from '../data/FootballDataEngine.validation';
 import { runDixonColesValidation } from '../dixonColes.validation';
 import { runPerformanceValidation } from '../performance/PerformanceEngine.validation';
 import { runDataCollectorValidation } from '../dataCollector/DataCollector.validation';
+import { runBacktestValidation } from '../backtesting/Backtest.validation';
 
 interface SettingsProps {
   onClearHistory: () => void;
@@ -38,7 +39,8 @@ export default function Settings({ onClearHistory, onImportHistory, historyCount
     const dixonColesResults = runDixonColesValidation().map(t => ({ ...t, model: 'Dixon-Coles v1.0.0' }));
     const performanceResults = runPerformanceValidation().map(t => ({ ...t, model: 'Performance Engine v1.0.0' }));
     const dataCollectorResults = (await runDataCollectorValidation()).map(t => ({ ...t, model: 'Data Collector v1.0.0' }));
-    setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults, ...dixonColesResults, ...performanceResults, ...dataCollectorResults]);
+    const backtestResults = (await runBacktestValidation()).map(t => ({ ...t, model: 'Backtesting Engine v1.0.0' }));
+    setDiagResults([...poissonResults, ...gammaResults, ...dataEngineResults, ...dixonColesResults, ...performanceResults, ...dataCollectorResults, ...backtestResults]);
   };
 
   useEffect(() => {

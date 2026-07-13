@@ -2,12 +2,12 @@ import { HistoricalMatch, HistoricalDataset, HistoricalDatasetMetadata, Historic
 import { normalizedTeamKey } from './HistoricalMatchValidator';
 
 const DB_NAME = 'football_prediction_lab';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /**
  * Apre una connessione al database IndexedDB in modo asincrono.
  */
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB non è supportato in questo ambiente.'));
@@ -56,7 +56,35 @@ function openDB(): Promise<IDBDatabase> {
         matchStore.createIndex('awayTeamKey', 'awayTeamKey', { unique: false });
       }
 
-      // Migrazione automatica dei vecchi record
+      // Nuovi store per il Backtesting
+      if (!db.objectStoreNames.contains('backtest_runs')) {
+        db.createObjectStore('backtest_runs', { keyPath: 'id' });
+      }
+
+      let resultsStore: IDBObjectStore;
+      if (!db.objectStoreNames.contains('backtest_results')) {
+        resultsStore = db.createObjectStore('backtest_results', { keyPath: 'id' });
+      } else {
+        resultsStore = transaction.objectStore('backtest_results');
+      }
+
+      if (!resultsStore.indexNames.contains('runId')) {
+        resultsStore.createIndex('runId', 'runId', { unique: false });
+      }
+      if (!resultsStore.indexNames.contains('modelId')) {
+        resultsStore.createIndex('modelId', 'modelId', { unique: false });
+      }
+      if (!resultsStore.indexNames.contains('competition')) {
+        resultsStore.createIndex('competition', 'competition', { unique: false });
+      }
+      if (!resultsStore.indexNames.contains('date')) {
+        resultsStore.createIndex('date', 'date', { unique: false });
+      }
+      if (!resultsStore.indexNames.contains('historicalMatchId')) {
+        resultsStore.createIndex('historicalMatchId', 'historicalMatchId', { unique: false });
+      }
+
+      // Migrazione automatica dei vecchi record di historical_matches
       const cursorReq = matchStore.openCursor();
       cursorReq.onsuccess = (e: any) => {
         const cursor = e.target.result;

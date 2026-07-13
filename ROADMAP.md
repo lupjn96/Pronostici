@@ -32,22 +32,35 @@ Questo documento descrive l'architettura, le fasi evolutive e gli obiettivi futu
 - **Calcolatore delle Feature Storiche e Antileakage**: Estrattore statistico puro per calcolare le medie gol della squadra in casa, squadra ospite e medie campionato nel passato, escludendo rigorosamente eventi futuri rispetto alla data del match simulato per evitare data leakage. Supporto opzionale per decadimento temporale (Time Decay) e finestre mobili (Rolling Windows).
 - **Test Diagnostici Completi**: Suite di test (TEST A - I) integrata in `DataCollector.validation.ts` per convalidare tutti i flussi e accessibile direttamente dall'interfaccia delle Impostazioni.
 
+### Fase 5: Chronological Backtesting Engine (Completato)
+- **Motore Cronologico**: Simulazione ordinata temporalmente per valutare le performance storiche reali senza retroazione o leakage.
+- **Protezione Data Leakage**: Esclusione automatica e rigorosa di qualsiasi dato o match successivo alla data della partita analizzata.
+- **Esecuzione Multi-Modello**: Esecuzione simultanea fino a 5 modelli con salvataggio delle metriche e isolamento degli errori (se un modello fallisce su una partita, gli altri continuano).
+- **Salvataggio Incrementale**: Scrittura a blocchi asincrona (tramite `setTimeout`) su IndexedDB (DB_VERSION 3) che previene colli di bottiglia prestazionali e consente pausa, ripresa e annullamento.
+- **Pausa, Ripresa e Annullamento**: Controlli interattivi fluidi dal dashboard per gestire sessioni di backtest estese in totale flessibilità.
+- **Aggregazione Metriche Avanzata**: Calcolo rigoroso di Brier Score, Log Loss, accuratezza 1-X-2, accuratezza del punteggio esatto, probabilità assegnata all'esito reale e deviazione quadratica media dei gol (casa/trasferta).
+- **Classifica Preliminare del Backtest**: Algoritmo di ranking dei modelli basato su Log Loss decrescente, Brier Score, accuratezza 1-X-2 ed efficacia statistica generale, con disclaimer statistico di sicurezza.
+
 ---
 
 ## Roadmap delle Fasi Future
 
-### Fase 5: Integrazione di Fonti Esterne Automatizzate (API & Scraping)
+### Fase 6: Ottimizzazioni e Calibrazioni Matematiche Avanzate
+- **Ottimizzazione Automatica di rho**: Calcolo del parametro ottimale $\rho$ bivariato per Dixon-Coles basato sullo storico caricato.
+- **Modello ELO Dinamico**: Implementazione del ranking Elo per le squadre basato su coefficienti aggiornati match-by-match.
+- **Walk-Forward Optimization**: Metodologia di calibrazione dei pesi temporali e dei parametri del modello con finestre mobili cumulative e storiche.
+
+### Fase 7: Integrazione di Fonti Esterne Automatizzate (API & Scraping)
 - **Integrazione API Sportive**: Collegamento automatico a provider di dati (es. API-Football, Football-Data.org) per popolare automaticamente le medie storiche dei team in base al campionato selezionato.
 - **Web Scraping & Live Quotes**: Funzionalità avanzate per recuperare classifiche e quote di mercato in tempo reale tramite scraping o widget integrati.
 
-### Fase 6: Modellazione Matematica Avanzata & Machine Learning
+### Fase 8: Machine Learning & Ensemble Engine
 - **Metriche xG (Expected Goals)**: Supporto nativo per metriche di Expected Goals di alta precisione basate sui tiri, differenziando i gol reali dalla qualità delle occasioni create.
 - **Ensemble Engine**: Integrazione di classificatori di Machine Learning e reti neurali leggeri per combinare i modelli Poisson, Dixon-Coles ed Elo in un unico previsore combinato.
 
-### Fase 7: Integrazione delle Quote e Value Betting
+### Fase 9: Integrazione delle Quote, Value Betting e ROI
 - **Confronto con le Quote dei Bookmaker**: Caricamento in tempo reale delle quote di mercato (1-X-2, Under/Over, Goal/NoGoal) tramite API o manuale.
-- **Value Bet Finder**: Algoritmo automatico che identifica le "scommesse di valore" confrontando le probabilità stimate dai modelli interni del Lab con le probabilità implicite dei bookmaker:
-  $$\text{Value} = (\text{Probabilità Stimata} \times \text{Quota}) - 100\%$$
+- **Value Bet Finder e Calcolo ROI**: Algoritmo automatico che identifica le "scommesse di valore" e simula il ROI reale sul bankroll storico basato su criteri matematici rigorosi.
 - **Gestione del Bankroll (Criterio di Kelly)**: Integrazione di calcolatori Kelly per ottimizzare la gestione delle puntate in base al vantaggio percentuale calcolato.
 
 ---

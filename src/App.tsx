@@ -13,6 +13,7 @@ import ModelComparison from './components/ModelComparison';
 import Settings from './components/Settings';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
 import DataCollectorDashboard from './components/DataCollectorDashboard';
+import BacktestingDashboard from './components/BacktestingDashboard';
 
 import { ModelInput, PredictionResult, SavedPrediction, ActualMatchResult, MODEL_VERSION } from './types';
 import { getOutcome, evaluatePrediction } from './performance/PerformanceEngine';
@@ -347,6 +348,8 @@ export default function App() {
         {section === 'models' && <ModelComparison />}
 
         {section === 'datacollector' && <DataCollectorDashboard />}
+
+        {section === 'backtesting' && <BacktestingDashboard />}
 
         {section === 'settings' && (
           <Settings
