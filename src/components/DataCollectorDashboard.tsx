@@ -18,7 +18,7 @@ import {
   TrendingUp,
   Award
 } from 'lucide-react';
-import { HistoricalMatch, HistoricalDataset } from '../dataCollector/HistoricalMatchTypes';
+import { HistoricalMatch, HistoricalDataset, HistoricalDatasetMetadata } from '../dataCollector/HistoricalMatchTypes';
 import { parseHistoricalCSV } from '../dataCollector/CSVParser';
 import { validateHistoricalMatch, mapHeadersToIndices, createHistoricalMatchId, normalizedTeamKey } from '../dataCollector/HistoricalMatchValidator';
 import { 
@@ -28,7 +28,9 @@ import {
   deleteDataset, 
   getAllMatches, 
   clearAllHistoricalData, 
-  countMatches 
+  countMatches,
+  getMatchesPage,
+  countFilteredMatches
 } from '../dataCollector/HistoricalMatchRepository';
 
 interface ErrorLogItem {
@@ -44,10 +46,16 @@ export default function DataCollectorDashboard() {
   const [activeTab, setActiveTab] = useState<'import' | 'datasets' | 'explore' | 'diagnostics'>('import');
 
   // Load state
-  const [datasets, setDatasets] = useState<HistoricalDataset[]>([]);
-  const [allMatches, setAllMatches] = useState<HistoricalMatch[]>([]);
+  const [datasets, setDatasets] = useState<HistoricalDatasetMetadata[]>([]);
+  const [exploreMatches, setExploreMatches] = useState<HistoricalMatch[]>([]);
   const [totalMatchesCount, setTotalMatchesCount] = useState<number>(0);
+  const [totalFilteredMatches, setTotalFilteredMatches] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMatches, setLoadingMatches] = useState<boolean>(false);
+
+  // Diagnostics state
+  const [diagnosticsResult, setDiagnosticsResult] = useState<any | null>(null);
+  const [loadingDiagnostics, setLoadingDiagnostics] = useState<boolean>(false);
 
   // File Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -70,6 +78,9 @@ export default function DataCollectorDashboard() {
   } | null>(null);
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
 
+  // Cancellation ref for CSV analysis
+  const cancellationRef = useRef<boolean>(false);
+
   // Explore filters
   const [searchTeam, setSearchTeam] = useState<string>('');
   const [searchComp, setSearchComp] = useState<string>('');
@@ -88,10 +99,13 @@ export default function DataCollectorDashboard() {
       setLoading(true);
       const ds = await getDatasets();
       const count = await countMatches();
-      const matches = await getAllMatches();
       setDatasets(ds);
       setTotalMatchesCount(count);
-      setAllMatches(matches);
+      setDiagnosticsResult(null); // Resetta diagnostica per ricalcolarla on-demand
+      
+      if (activeTab === 'explore') {
+        loadExploreMatches();
+      }
     } catch (err) {
       console.error('Errore durante il caricamento dei dati da IndexedDB:', err);
     } finally {
@@ -99,9 +113,143 @@ export default function DataCollectorDashboard() {
     }
   };
 
+  const loadExploreMatches = async () => {
+    try {
+      setLoadingMatches(true);
+      const matches = await getMatchesPage({
+        page: currentPage,
+        pageSize: rowsPerPage,
+        team: searchTeam,
+        competition: searchComp,
+        date: searchDate
+      });
+      const totalCount = await countFilteredMatches({
+        team: searchTeam,
+        competition: searchComp,
+        date: searchDate
+      });
+      setExploreMatches(matches);
+      setTotalFilteredMatches(totalCount);
+    } catch (err) {
+      console.error('Errore nel caricamento delle partite filtrate:', err);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
+  const handleLoadDiagnostics = async () => {
+    try {
+      setLoadingDiagnostics(true);
+      const matches = await getAllMatches();
+      if (matches.length === 0) {
+        setDiagnosticsResult(null);
+        return;
+      }
+
+      const totalMatches = matches.length;
+      const compsSet = new Set<string>();
+      const teamsSet = new Set<string>();
+      let matchesWithOdds = 0;
+      let matchesWithXG = 0;
+      let matchesComplete = 0;
+      let minDate = matches[0].date;
+      let maxDate = matches[0].date;
+
+      const compCounts: Record<string, number> = {};
+      const teamHomeCounts: Record<string, number> = {};
+      const teamAwayCounts: Record<string, number> = {};
+      const futureMatches: HistoricalMatch[] = [];
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      for (const m of matches) {
+        compsSet.add(m.competition);
+        teamsSet.add(m.homeTeam);
+        teamsSet.add(m.awayTeam);
+
+        if (m.oddsHome !== undefined) matchesWithOdds++;
+        if (m.homeXG !== undefined) matchesWithXG++;
+        
+        if (
+          m.homeShots !== undefined && 
+          m.homeCorners !== undefined && 
+          m.homeYellowCards !== undefined &&
+          m.homeRedCards !== undefined
+        ) {
+          matchesComplete++;
+        }
+
+        if (m.date < minDate) minDate = m.date;
+        if (m.date > maxDate) maxDate = m.date;
+
+        compCounts[m.competition] = (compCounts[m.competition] || 0) + 1;
+        teamHomeCounts[m.homeTeam] = (teamHomeCounts[m.homeTeam] || 0) + 1;
+        teamAwayCounts[m.awayTeam] = (teamAwayCounts[m.awayTeam] || 0) + 1;
+
+        if (m.date > todayStr) {
+          futureMatches.push(m);
+        }
+      }
+
+      const warnings: { type: 'warning' | 'info'; text: string }[] = [];
+
+      if (totalMatches < 100) {
+        warnings.push({ type: 'warning', text: `Il sistema contiene solo ${totalMatches} partite totali (raccomandato: almeno 100 per un backtesting valido).` });
+      }
+
+      for (const [comp, count] of Object.entries(compCounts)) {
+        if (count < 30) {
+          warnings.push({ type: 'info', text: `La competizione "${comp}" ha solo ${count} partite registrate (raccomandato: almeno 30 per stima di medie campionato attendibili).` });
+        }
+      }
+
+      for (const team of Array.from(teamsSet)) {
+        const homeC = teamHomeCounts[team] || 0;
+        const awayC = teamAwayCounts[team] || 0;
+        if (homeC < 5) {
+          warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${homeC} partite in casa (consigliate almeno 5 per stime Poisson stabili).` });
+        }
+        if (awayC < 5) {
+          warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${awayC} partite in trasferta (consigliate almeno 5 per stime Poisson stabili).` });
+        }
+      }
+
+      if (futureMatches.length > 0) {
+        warnings.push({ type: 'warning', text: `Rilevate ${futureMatches.length} partite con date future rispetto ad oggi.` });
+      }
+
+      setDiagnosticsResult({
+        totalMatches,
+        totalCompetitions: compsSet.size,
+        uniqueTeams: teamsSet.size,
+        timeRange: `${minDate} / ${maxDate}`,
+        pctOdds: (matchesWithOdds / totalMatches) * 100,
+        pctXG: (matchesWithXG / totalMatches) * 100,
+        pctComplete: (matchesComplete / totalMatches) * 100,
+        warnings
+      });
+    } catch (err) {
+      console.error('Errore nel calcolo della diagnostica:', err);
+    } finally {
+      setLoadingDiagnostics(false);
+    }
+  };
+
   useEffect(() => {
     refreshData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'explore') {
+      loadExploreMatches();
+    }
+  }, [currentPage, searchTeam, searchComp, searchDate, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'diagnostics') {
+      handleLoadDiagnostics();
+    }
+  }, [activeTab]);
 
   // Handle Drag & Drop
   const handleDragOver = (e: React.DragEvent) => {
@@ -128,10 +276,10 @@ export default function DataCollectorDashboard() {
     setAnalyzedData(null);
     setImportSuccessMsg(null);
 
-    // Limiti di sicurezza: max 50MB
-    const maxSizeBytes = 50 * 1024 * 1024;
+    // Limite di sicurezza ridotto a 10MB per stabilità su dispositivi mobili
+    const maxSizeBytes = 10 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      setUploadError('Errore: Il file supera il limite massimo di 50 MB.');
+      setUploadError('Errore: Il file supera il limite massimo di 10 MB. Limite temporaneo per garantire stabilità su dispositivi mobili.');
       return;
     }
 
@@ -146,14 +294,20 @@ export default function DataCollectorDashboard() {
     if (!selectedFile) return;
 
     setIsAnalyzing(true);
-    setAnalysisProgress(10);
+    setAnalysisProgress(5);
     setUploadError(null);
+    cancellationRef.current = false;
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
-        setAnalysisProgress(30);
+        if (cancellationRef.current) {
+          setIsAnalyzing(false);
+          setUploadError("Analisi annullata.");
+          return;
+        }
+        setAnalysisProgress(15);
 
         // Parsing CSV
         const parsed = parseHistoricalCSV(text);
@@ -163,10 +317,15 @@ export default function DataCollectorDashboard() {
           return;
         }
 
-        setAnalysisProgress(50);
-        // Limite di righe: 100.000
-        if (parsed.rows.length > 100000) {
-          setUploadError('Errore: Il file CSV supera il limite di 100.000 righe.');
+        if (cancellationRef.current) {
+          setIsAnalyzing(false);
+          setUploadError("Analisi annullata.");
+          return;
+        }
+
+        // Limite di righe ridotto a 20.000 per garantire stabilità su dispositivi mobili
+        if (parsed.rows.length > 20000) {
+          setUploadError('Errore: Il file CSV supera il limite di 20.000 righe. Limite temporaneo per garantire stabilità su dispositivi mobili.');
           setIsAnalyzing(false);
           return;
         }
@@ -190,12 +349,7 @@ export default function DataCollectorDashboard() {
           return;
         }
 
-        setAnalysisProgress(70);
-
-        // Prepara un set degli ID delle partite storiche già salvate nel sistema per il controllo dei duplicati
-        const existingIds = new Set(allMatches.map(m => m.id));
         const currentFileIds = new Set<string>();
-
         const validMatches: HistoricalMatch[] = [];
         const errorLog: ErrorLogItem[] = [];
         let invalidCount = 0;
@@ -203,65 +357,89 @@ export default function DataCollectorDashboard() {
         let warningCount = 0;
 
         const fakeDatasetId = `ds-${Date.now()}`;
+        const totalRows = parsed.rows.length;
+        const blockSize = 500;
 
-        // Valida riga per riga
-        for (let i = 0; i < parsed.rows.length; i++) {
-          const rowData = parsed.rows[i];
-          
-          // Mappa la riga grezza usando gli indici rilevati
-          const rowObj: Record<string, string> = {};
-          for (const [key, idx] of Object.entries(indices)) {
-            if (idx !== -1 && rowData[idx] !== undefined) {
-              rowObj[key] = rowData[idx];
-            }
+        // Valida riga per riga in blocchi asincroni per non bloccare il thread (stabilità Safari/Chrome iOS)
+        for (let offset = 0; offset < totalRows; offset += blockSize) {
+          if (cancellationRef.current) {
+            setIsAnalyzing(false);
+            setUploadError("Analisi annullata dall'utente.");
+            return;
           }
 
-          // Valida la partita
-          const res = validateHistoricalMatch(rowObj, fakeDatasetId, datasetSource);
-          const rowNumber = i + 2; // +1 per 1-based, +1 per saltare l'header
+          const limit = Math.min(offset + blockSize, totalRows);
+          for (let i = offset; i < limit; i++) {
+            const rowData = parsed.rows[i];
+            
+            // Mappa la riga grezza usando gli indici rilevati
+            const rowObj: Record<string, string> = {};
+            for (const [key, idx] of Object.entries(indices)) {
+              if (idx !== -1 && rowData[idx] !== undefined) {
+                rowObj[key] = rowData[idx];
+              }
+            }
 
-          if (!res.isValid) {
-            invalidCount++;
-            errorLog.push({
-              rowNumber,
-              homeTeam: rowObj['homeTeam'] || 'Sconosciuta',
-              awayTeam: rowObj['awayTeam'] || 'Sconosciuta',
-              errors: res.errors,
-              warnings: res.warnings
-            });
-          } else if (res.match) {
-            const matchId = res.match.id;
+            // Valida la partita
+            const res = validateHistoricalMatch(rowObj, fakeDatasetId, datasetSource);
+            const rowNumber = i + 2; // +1 per 1-based, +1 per saltare l'header
 
-            // Rilevamento duplicati (nel file corrente o nel DB locale)
-            if (currentFileIds.has(matchId) || existingIds.has(matchId)) {
-              duplicateCount++;
+            if (!res.isValid) {
+              invalidCount++;
               errorLog.push({
                 rowNumber,
-                homeTeam: res.match.homeTeam,
-                awayTeam: res.match.awayTeam,
-                errors: ['Riga duplicata rilevata (stessa data, competizione, casa e trasferta)'],
+                homeTeam: rowObj['homeTeam'] || 'Sconosciuta',
+                awayTeam: rowObj['awayTeam'] || 'Sconosciuta',
+                errors: res.errors,
                 warnings: res.warnings
               });
-            } else {
-              currentFileIds.add(matchId);
-              validMatches.push(res.match);
-              if (res.warnings.length > 0) {
-                warningCount += res.warnings.length;
+            } else if (res.match) {
+              const matchId = res.match.id;
+
+              // Rilevamento duplicati all'interno dello stesso file CSV
+              if (currentFileIds.has(matchId)) {
+                duplicateCount++;
                 errorLog.push({
                   rowNumber,
                   homeTeam: res.match.homeTeam,
                   awayTeam: res.match.awayTeam,
-                  errors: [],
+                  errors: ['Riga duplicata all\'interno del file corrente'],
                   warnings: res.warnings
                 });
+              } else {
+                currentFileIds.add(matchId);
+                validMatches.push(res.match);
+                if (res.warnings.length > 0) {
+                  warningCount += res.warnings.length;
+                  errorLog.push({
+                    rowNumber,
+                    homeTeam: res.match.homeTeam,
+                    awayTeam: res.match.awayTeam,
+                    errors: [],
+                    warnings: res.warnings
+                  });
+                }
               }
             }
           }
+
+          // Calcola e aggiorna il progresso reale basato sulle righe elaborate
+          const progressPercent = Math.min(95, Math.round(15 + (offset / totalRows) * 80));
+          setAnalysisProgress(progressPercent);
+
+          // Rilascia il thread principale per l'interfaccia utente (Safari/iPhone friendly)
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        if (cancellationRef.current) {
+          setIsAnalyzing(false);
+          setUploadError("Analisi annullata dall'utente.");
+          return;
         }
 
         setAnalysisProgress(100);
         setAnalyzedData({
-          totalRows: parsed.rows.length,
+          totalRows,
           validMatches,
           invalidCount,
           duplicateCount,
@@ -307,8 +485,12 @@ export default function DataCollectorDashboard() {
         matches: finalMatches
       };
 
-      await saveDataset(newDataset);
-      setImportSuccessMsg(`Dataset "${newDataset.name}" importato con successo! ${finalMatches.length} partite storiche salvate.`);
+      const result = await saveDataset(newDataset);
+      setImportSuccessMsg(
+        `Dataset "${newDataset.name}" importato con successo! ` +
+        `Salvate: ${result.savedMatches} partite storiche. ` +
+        `Evitate: ${result.skippedDuplicates} partite già presenti nel database.`
+      );
       
       // Resetta stato dell'import
       setSelectedFile(null);
@@ -393,134 +575,12 @@ export default function DataCollectorDashboard() {
     }
   };
 
-  // Filter explore matches
-  const filteredMatches = useMemo(() => {
-    let result = [...allMatches];
-
-    if (searchTeam.trim()) {
-      const term = normalizedTeamKey(searchTeam);
-      result = result.filter(
-        m => normalizedTeamKey(m.homeTeam).includes(term) || normalizedTeamKey(m.awayTeam).includes(term)
-      );
-    }
-
-    if (searchComp.trim()) {
-      const term = normalizedTeamKey(searchComp);
-      result = result.filter(m => normalizedTeamKey(m.competition).includes(term));
-    }
-
-    if (searchDate) {
-      result = result.filter(m => m.date === searchDate);
-    }
-
-    // Ordina per data discendente
-    result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    return result;
-  }, [allMatches, searchTeam, searchComp, searchDate]);
-
-  // Paginated Matches
-  const paginatedMatches = useMemo(() => {
-    const startIndex = (currentPage - 1) * rowsPerPage;
-    return filteredMatches.slice(startIndex, startIndex + rowsPerPage);
-  }, [filteredMatches, currentPage]);
-
-  const totalPages = Math.ceil(filteredMatches.length / rowsPerPage) || 1;
+  const totalPages = Math.ceil(totalFilteredMatches / rowsPerPage) || 1;
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTeam, searchComp, searchDate]);
-
-  // Diagnostics calculations
-  const diagnosticsData = useMemo(() => {
-    if (allMatches.length === 0) return null;
-
-    const totalMatches = allMatches.length;
-    const compsSet = new Set<string>();
-    const teamsSet = new Set<string>();
-    let matchesWithOdds = 0;
-    let matchesWithXG = 0;
-    let matchesComplete = 0;
-    let minDate = allMatches[0].date;
-    let maxDate = allMatches[0].date;
-
-    const compCounts: Record<string, number> = {};
-    const teamHomeCounts: Record<string, number> = {};
-    const teamAwayCounts: Record<string, number> = {};
-    const futureMatches: HistoricalMatch[] = [];
-
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    for (const m of allMatches) {
-      compsSet.add(m.competition);
-      teamsSet.add(m.homeTeam);
-      teamsSet.add(m.awayTeam);
-
-      if (m.oddsHome !== undefined) matchesWithOdds++;
-      if (m.homeXG !== undefined) matchesWithXG++;
-      
-      // Complete stats if we have shots, corners, yellow and red cards
-      if (
-        m.homeShots !== undefined && 
-        m.homeCorners !== undefined && 
-        m.homeYellowCards !== undefined &&
-        m.homeRedCards !== undefined
-      ) {
-        matchesComplete++;
-      }
-
-      if (m.date < minDate) minDate = m.date;
-      if (m.date > maxDate) maxDate = m.date;
-
-      // Group counts for warnings
-      compCounts[m.competition] = (compCounts[m.competition] || 0) + 1;
-      teamHomeCounts[m.homeTeam] = (teamHomeCounts[m.homeTeam] || 0) + 1;
-      teamAwayCounts[m.awayTeam] = (teamAwayCounts[m.awayTeam] || 0) + 1;
-
-      if (m.date > todayStr) {
-        futureMatches.push(m);
-      }
-    }
-
-    const warnings: { type: 'warning' | 'info'; text: string }[] = [];
-
-    if (totalMatches < 100) {
-      warnings.push({ type: 'warning', text: `Il sistema contiene solo ${totalMatches} partite totali (raccomandato: almeno 100 per un backtesting valido).` });
-    }
-
-    for (const [comp, count] of Object.entries(compCounts)) {
-      if (count < 30) {
-        warnings.push({ type: 'info', text: `La competizione "${comp}" ha solo ${count} partite registrate (raccomandato: almeno 30 per stimare medie campionato attendibili).` });
-      }
-    }
-
-    for (const team of Array.from(teamsSet)) {
-      const homeC = teamHomeCounts[team] || 0;
-      const awayC = teamAwayCounts[team] || 0;
-      if (homeC < 5) {
-        warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${homeC} partite in casa (consigliate almeno 5 per stime Poisson stabili).` });
-      }
-      if (awayC < 5) {
-        warnings.push({ type: 'info', text: `La squadra "${team}" ha solo ${awayC} partite in trasferta (consigliate almeno 5 per stime Poisson stabili).` });
-      }
-    }
-
-    if (futureMatches.length > 0) {
-      warnings.push({ type: 'warning', text: `Rilevate ${futureMatches.length} partite con date future rispetto ad oggi.` });
-    }
-
-    return {
-      totalMatches,
-      totalCompetitions: compsSet.size,
-      uniqueTeams: teamsSet.size,
-      timeRange: `${minDate} / ${maxDate}`,
-      pctOdds: (matchesWithOdds / totalMatches) * 100,
-      pctXG: (matchesWithXG / totalMatches) * 100,
-      pctComplete: (matchesComplete / totalMatches) * 100,
-      warnings
-    };
-  }, [allMatches]);
 
   return (
     <div className="space-y-6">
@@ -615,7 +675,10 @@ export default function DataCollectorDashboard() {
               >
                 <Upload className="w-10 h-10 text-slate-500" />
                 <div className="text-slate-300 font-medium">Trascina qui il file CSV o clicca per sfogliare</div>
-                <div className="text-slate-500 text-xs">Supporta file fino a 50MB (max 100.000 righe)</div>
+                <div className="text-slate-500 text-xs">Supporta file fino a 10MB (max 20.000 righe)</div>
+                <div className="text-amber-500/95 text-[11px] font-medium bg-amber-500/5 px-2.5 py-1 rounded-full border border-amber-500/10">
+                  Limite temporaneo per garantire stabilità su dispositivi mobili.
+                </div>
                 {selectedFile && (
                   <div className="px-3 py-1 bg-slate-800 text-emerald-400 font-mono text-xs rounded border border-slate-700 flex items-center gap-2 mt-2">
                     <FileText className="w-3.5 h-3.5" /> {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
@@ -657,6 +720,14 @@ export default function DataCollectorDashboard() {
                   </div>
 
                   <div className="flex justify-end gap-2.5 pt-2">
+                    {isAnalyzing && (
+                      <button
+                        onClick={() => { cancellationRef.current = true; }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Annulla analisi
+                      </button>
+                    )}
                     <button
                       onClick={handleAnalyzeFile}
                       disabled={isAnalyzing || !datasetName.trim()}
@@ -1031,7 +1102,9 @@ export default function DataCollectorDashboard() {
           </div>
 
           {/* Tabella Risultati */}
-          {filteredMatches.length === 0 ? (
+          {loadingMatches ? (
+            <div className="text-center py-10 text-slate-500 text-xs font-mono">Caricamento partite in corso...</div>
+          ) : totalFilteredMatches === 0 ? (
             <div className="text-center py-10 bg-slate-900/10 border border-slate-800 text-slate-500 text-xs font-sans rounded-xl">
               Nessuna partita corrisponde ai criteri di ricerca impostati.
             </div>
@@ -1051,7 +1124,7 @@ export default function DataCollectorDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/40 text-[11px] text-slate-400 font-mono">
-                    {paginatedMatches.map((m, idx) => (
+                    {exploreMatches.map((m, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/10">
                         <td className="p-2.5 whitespace-nowrap">{m.date}</td>
                         <td className="p-2.5 whitespace-nowrap text-slate-300">{m.competition}</td>
@@ -1074,7 +1147,7 @@ export default function DataCollectorDashboard() {
               {totalPages > 1 && (
                 <div className="flex justify-between items-center bg-slate-900/30 p-3 rounded-xl border border-slate-800 text-xs">
                   <span className="text-slate-400">
-                    Mostrati {paginatedMatches.length} di {filteredMatches.length} record (Pagina {currentPage} di {totalPages})
+                    Mostrati {exploreMatches.length} di {totalFilteredMatches} record (Pagina {currentPage} di {totalPages})
                   </span>
                   <div className="flex gap-1.5">
                     <button
@@ -1102,25 +1175,27 @@ export default function DataCollectorDashboard() {
       {/* SEZIONE 4: DIAGNOSTICA */}
       {activeTab === 'diagnostics' && (
         <div className="space-y-6">
-          {diagnosticsData ? (
+          {loadingDiagnostics ? (
+            <div className="text-center py-10 text-slate-500 text-xs font-mono">Calcolo diagnostica in corso (analisi di tutti i record)...</div>
+          ) : diagnosticsResult ? (
             <div className="space-y-6">
               {/* Statistiche Chiave */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/10">
                   <span className="block text-[10px] text-slate-400">Totale Partite</span>
-                  <span className="text-xl font-bold font-mono text-white">{diagnosticsData.totalMatches}</span>
+                  <span className="text-xl font-bold font-mono text-white">{diagnosticsResult.totalMatches}</span>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/10">
                   <span className="block text-[10px] text-slate-400">Totale Competizioni</span>
-                  <span className="text-xl font-bold font-mono text-white">{diagnosticsData.totalCompetitions}</span>
+                  <span className="text-xl font-bold font-mono text-white">{diagnosticsResult.totalCompetitions}</span>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/10">
                   <span className="block text-[10px] text-slate-400">Squadre Uniche</span>
-                  <span className="text-xl font-bold font-mono text-white">{diagnosticsData.uniqueTeams}</span>
+                  <span className="text-xl font-bold font-mono text-white">{diagnosticsResult.uniqueTeams}</span>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/10">
                   <span className="block text-[10px] text-slate-400">Arco Temporale</span>
-                  <span className="text-xs font-bold font-mono text-emerald-400 mt-1 block leading-none">{diagnosticsData.timeRange}</span>
+                  <span className="text-xs font-bold font-mono text-emerald-400 mt-1 block leading-none">{diagnosticsResult.timeRange}</span>
                 </div>
               </div>
 
@@ -1131,11 +1206,11 @@ export default function DataCollectorDashboard() {
                   {/* Quote */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-medium">Copertura Quote Quote (1X2)</span>
-                      <span className="font-mono text-blue-400 font-semibold">{diagnosticsData.pctOdds.toFixed(1)}%</span>
+                      <span className="text-slate-400 font-medium">Copertura Quote (1X2)</span>
+                      <span className="font-mono text-blue-400 font-semibold">{diagnosticsResult.pctOdds.toFixed(1)}%</span>
                     </div>
                     <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${diagnosticsData.pctOdds}%` }} />
+                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${diagnosticsResult.pctOdds}%` }} />
                     </div>
                   </div>
 
@@ -1143,10 +1218,10 @@ export default function DataCollectorDashboard() {
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-400 font-medium">Copertura Expected Goals (xG)</span>
-                      <span className="font-mono text-emerald-400 font-semibold">{diagnosticsData.pctXG.toFixed(1)}%</span>
+                      <span className="font-mono text-emerald-400 font-semibold">{diagnosticsResult.pctXG.toFixed(1)}%</span>
                     </div>
                     <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${diagnosticsData.pctXG}%` }} />
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${diagnosticsResult.pctXG}%` }} />
                     </div>
                   </div>
 
@@ -1154,10 +1229,10 @@ export default function DataCollectorDashboard() {
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-400 font-medium">Statistiche Partita Complete</span>
-                      <span className="font-mono text-purple-400 font-semibold">{diagnosticsData.pctComplete.toFixed(1)}%</span>
+                      <span className="font-mono text-purple-400 font-semibold">{diagnosticsResult.pctComplete.toFixed(1)}%</span>
                     </div>
                     <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${diagnosticsData.pctComplete}%` }} />
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${diagnosticsResult.pctComplete}%` }} />
                     </div>
                   </div>
                 </div>
@@ -1170,13 +1245,13 @@ export default function DataCollectorDashboard() {
                   Riepilogo Anomalie e Warning di Campionamento
                 </h3>
                 
-                {diagnosticsData.warnings.length === 0 ? (
+                {diagnosticsResult.warnings.length === 0 ? (
                   <div className="p-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-400 text-xs flex items-center gap-2">
                     <Check className="w-4 h-4" /> I dati caricati non presentano anomalie strutturali, insufficienza campionaria o date non congrue.
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                    {diagnosticsData.warnings.map((w, idx) => (
+                    {diagnosticsResult.warnings.map((w, idx) => (
                       <div key={idx} className={`p-3 text-xs rounded-lg border flex items-start gap-2 ${
                         w.type === 'warning' 
                           ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' 

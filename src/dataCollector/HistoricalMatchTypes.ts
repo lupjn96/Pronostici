@@ -41,7 +41,7 @@ export interface HistoricalMatch {
   importedAt: string;
 }
 
-export interface HistoricalDataset {
+export interface HistoricalDatasetMetadata {
   id: string;
   name: string;
   source: string;
@@ -50,5 +50,8 @@ export interface HistoricalDataset {
   validRows: number;
   invalidRows: number;
   duplicateRows: number;
+}
+
+export interface HistoricalDataset extends HistoricalDatasetMetadata {
   matches: HistoricalMatch[];
 }

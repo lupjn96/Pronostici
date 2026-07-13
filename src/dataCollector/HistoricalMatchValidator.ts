@@ -32,6 +32,107 @@ export function createHistoricalMatchId(match: {
   return `${dateStr}_${compKey}_${homeKey}_${awayKey}`;
 }
 
+/**
+ * Analizza e valida una data in diversi formati europei ed ISO.
+ * Restituisce una data ISO YYYY-MM-DD se valida.
+ */
+export function parseHistoricalDate(value: string): {
+  isValid: boolean;
+  isoDate?: string;
+  error?: string;
+} {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { isValid: false, error: 'La data è obbligatoria e mancante.' };
+  }
+
+  let day = 0;
+  let month = 0;
+  let year = 0;
+  let matched = false;
+
+  // 1. Pattern YYYY-MM-DD
+  const p1 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (p1) {
+    year = parseInt(p1[1], 10);
+    month = parseInt(p1[2], 10);
+    day = parseInt(p1[3], 10);
+    matched = true;
+  }
+
+  // 2. Pattern DD/MM/YYYY
+  if (!matched) {
+    const p2 = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
+    if (p2) {
+      day = parseInt(p2[1], 10);
+      month = parseInt(p2[2], 10);
+      year = parseInt(p2[3], 10);
+      matched = true;
+    }
+  }
+
+  // 3. Pattern DD/MM/YY
+  if (!matched) {
+    const p3 = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(trimmed);
+    if (p3) {
+      day = parseInt(p3[1], 10);
+      month = parseInt(p3[2], 10);
+      const yy = parseInt(p3[3], 10);
+      year = yy <= 49 ? 2000 + yy : 1900 + yy;
+      matched = true;
+    }
+  }
+
+  // 4. Pattern DD-MM-YYYY
+  if (!matched) {
+    const p4 = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(trimmed);
+    if (p4) {
+      day = parseInt(p4[1], 10);
+      month = parseInt(p4[2], 10);
+      year = parseInt(p4[3], 10);
+      matched = true;
+    }
+  }
+
+  // 5. Pattern DD-MM-YY
+  if (!matched) {
+    const p5 = /^(\d{1,2})-(\d{1,2})-(\d{2})$/.exec(trimmed);
+    if (p5) {
+      day = parseInt(p5[1], 10);
+      month = parseInt(p5[2], 10);
+      const yy = parseInt(p5[3], 10);
+      year = yy <= 49 ? 2000 + yy : 1900 + yy;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    return {
+      isValid: false,
+      error: `Formato data non riconosciuto: "${trimmed}". Formati supportati: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY, DD-MM-YYYY, DD-MM-YY.`
+    };
+  }
+
+  if (month < 1 || month > 12) {
+    return { isValid: false, error: `Mese non valido: ${month}` };
+  }
+
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const daysInMonths = [0, 31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  if (day < 1 || day > daysInMonths[month]) {
+    return {
+      isValid: false,
+      error: `Giorno non valido per il mese e anno specificati: ${day}/${month}/${year}`
+    };
+  }
+
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  const isoDate = `${year}-${pad(month)}-${pad(day)}`;
+
+  return { isValid: true, isoDate };
+}
+
 export interface ValidationResult {
   isValid: boolean;
   match?: HistoricalMatch;
@@ -58,13 +159,17 @@ export function validateHistoricalMatch(
   const rawHomeGoals = row['homeGoals'];
   const rawAwayGoals = row['awayGoals'];
 
+  let validatedIsoDate = '';
+
   // 1. Validazione Data
   if (!rawDate.trim()) {
     errors.push('La data è obbligatoria e mancante.');
   } else {
-    const parsedDate = new Date(rawDate);
-    if (isNaN(parsedDate.getTime())) {
-      errors.push(`Data non valida: "${rawDate}"`);
+    const dateCheck = parseHistoricalDate(rawDate);
+    if (!dateCheck.isValid || !dateCheck.isoDate) {
+      errors.push(dateCheck.error || `Data non valida: "${rawDate}"`);
+    } else {
+      validatedIsoDate = dateCheck.isoDate;
     }
   }
 
@@ -111,7 +216,7 @@ export function validateHistoricalMatch(
   const match: HistoricalMatch = {
     id: '', // Verrà impostato alla fine
     datasetId,
-    date: new Date(rawDate).toISOString().split('T')[0], // Standardizza a YYYY-MM-DD
+    date: validatedIsoDate, // Standardizza a YYYY-MM-DD
     season: row['season']?.trim() || undefined,
     competition: rawComp.trim(),
     homeTeam: rawHome.trim(),

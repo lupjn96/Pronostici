@@ -13,13 +13,29 @@ export function parseHistoricalCSV(csvText: string): ParsedCSV {
     csvText = csvText.slice(1);
   }
 
-  // Rilevamento del separatore basato sulle occorrenze nella prima riga
+  // Rilevamento del separatore basato sulle occorrenze nella prima riga al di fuori delle virgolette
   const firstLine = csvText.split(/\r?\n/)[0] || '';
-  let separator = ',';
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  const semiCount = (firstLine.match(/;/g) || []).length;
-  const tabCount = (firstLine.match(/\t/g) || []).length;
+  let commaCount = 0;
+  let semiCount = 0;
+  let tabCount = 0;
+  let localInQuotes = false;
 
+  for (let i = 0; i < firstLine.length; i++) {
+    const char = firstLine[i];
+    if (char === '"') {
+      localInQuotes = !localInQuotes;
+    } else if (!localInQuotes) {
+      if (char === ',') {
+        commaCount++;
+      } else if (char === ';') {
+        semiCount++;
+      } else if (char === '\t') {
+        tabCount++;
+      }
+    }
+  }
+
+  let separator = ',';
   if (semiCount > commaCount && semiCount > tabCount) {
     separator = ';';
   } else if (tabCount > commaCount && tabCount > semiCount) {

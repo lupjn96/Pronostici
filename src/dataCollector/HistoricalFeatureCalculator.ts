@@ -46,12 +46,39 @@ export function calculateTeamStatistics(
   const targetCompNorm = normalizedTeamKey(competition);
   const targetHomeNorm = normalizedTeamKey(homeTeam);
   const targetAwayNorm = normalizedTeamKey(awayTeam);
-  const targetBeforeTime = new Date(beforeDate).getTime();
 
-  // 1. Filtra per competizione e data precedente (escludendo la partita corrente/future)
+  // Validazione esplicita di beforeDate (deve essere una data ISO valida YYYY-MM-DD)
+  const isBeforeDateIso = /^\d{4}-\d{2}-\d{2}$/.test(beforeDate);
+  const targetBeforeTime = isBeforeDateIso ? new Date(beforeDate).getTime() : NaN;
+
+  if (isNaN(targetBeforeTime)) {
+    return {
+      homeTeamHomeMatches: 0,
+      awayTeamAwayMatches: 0,
+      homeScoredAvg: 0,
+      homeConcededAvg: 0,
+      awayScoredAvg: 0,
+      awayConcededAvg: 0,
+      leagueHomeScoredAvg: 1.5,
+      leagueAwayScoredAvg: 1.1,
+      homeOverallMatches: 0,
+      awayOverallMatches: 0,
+      dataCoverageScore: 0
+    };
+  }
+
+  // 1. Filtra per competizione e data precedente (escludendo la partita corrente/future e ignorando date non valide)
   const previousCompMatches = matches.filter(m => {
-    return normalizedTeamKey(m.competition) === targetCompNorm && 
-           new Date(m.date).getTime() < targetBeforeTime;
+    const isMatchDateIso = /^\d{4}-\d{2}-\d{2}$/.test(m.date);
+    if (!isMatchDateIso) return false;
+
+    const mTime = new Date(m.date).getTime();
+    if (isNaN(mTime)) return false;
+
+    // Ignora partite con data futura o uguale a prima della data del pronostico
+    if (mTime >= targetBeforeTime) return false;
+
+    return normalizedTeamKey(m.competition) === targetCompNorm;
   });
 
   // Ordina per data decrescente (dalle più recenti alle più vecchie)
