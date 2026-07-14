@@ -74,6 +74,8 @@ export interface PredictionResult {
   dixonColesParameters?: {
     rho: number;
   };
+  eloManualFallback?: boolean;
+  warnings?: string[];
 }
 
 export interface PredictionModel {

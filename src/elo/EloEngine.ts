@@ -15,6 +15,37 @@ export const DEFAULT_ELO_CONFIG: EloConfig = {
 };
 
 /**
+ * Valida che un valore numerico sia finito, non NaN e non indefinito.
+ */
+function validateFinite(val: number, name: string): void {
+  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) {
+    throw new Error(`Parametro non valido: ${name} deve essere un numero finito, ricevuto: ${val}`);
+  }
+}
+
+/**
+ * Valida la configurazione Elo.
+ */
+function validateConfig(config: EloConfig): void {
+  if (!config) {
+    throw new Error("Configurazione Elo non valida: config non fornito.");
+  }
+  validateFinite(config.initialRating, "config.initialRating");
+  validateFinite(config.kFactor, "config.kFactor");
+  validateFinite(config.homeAdvantage, "config.homeAdvantage");
+  validateFinite(config.drawMargin, "config.drawMargin");
+  if (config.initialRating <= 0) {
+    throw new Error("Configurazione Elo non valida: initialRating deve essere maggiore di zero.");
+  }
+  if (config.kFactor < 0) {
+    throw new Error("Configurazione Elo non valida: kFactor non può essere negativo.");
+  }
+  if (config.drawMargin < 0) {
+    throw new Error("Configurazione Elo non valida: drawMargin non può essere negativo.");
+  }
+}
+
+/**
  * Calcola il fattoriale di un numero in modo sicuro.
  */
 function factorial(n: number): number {
@@ -31,7 +62,12 @@ function factorial(n: number): number {
  * Calcola la probabilità di Poisson per k gol dato lambda.
  */
 export function poissonProbability(k: number, lambda: number): number {
-  if (lambda <= 0) {
+  validateFinite(lambda, "lambda");
+  validateFinite(k, "k");
+  if (lambda < 0) {
+    throw new Error(`Valore di lambda non valido (minore di zero): ${lambda}`);
+  }
+  if (lambda === 0) {
     return k === 0 ? 1 : 0;
   }
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
@@ -42,8 +78,13 @@ export function poissonProbability(k: number, lambda: number): number {
  * Formula classica: 1 / (1 + 10^(-D / 400))
  */
 export function calculateExpectedScore(homeRating: number, awayRating: number, homeAdvantage: number): number {
+  validateFinite(homeRating, "homeRating");
+  validateFinite(awayRating, "awayRating");
+  validateFinite(homeAdvantage, "homeAdvantage");
   const diff = homeRating + homeAdvantage - awayRating;
-  return 1 / (1 + Math.pow(10, -diff / 400));
+  const res = 1 / (1 + Math.pow(10, -diff / 400));
+  validateFinite(res, "expectedScore");
+  return res;
 }
 
 /**
@@ -51,6 +92,15 @@ export function calculateExpectedScore(homeRating: number, awayRating: number, h
  * S è il punteggio reale (1 per vittoria casa, 0.5 per pareggio, 0 per vittoria fuori).
  */
 export function calculateRatingChange(expectedScore: number, actualScore: number, kFactor: number): number {
+  validateFinite(expectedScore, "expectedScore");
+  validateFinite(actualScore, "actualScore");
+  validateFinite(kFactor, "kFactor");
+  if (expectedScore < 0 || expectedScore > 1) {
+    throw new Error(`expectedScore deve essere compreso tra 0 e 1, ricevuto: ${expectedScore}`);
+  }
+  if (actualScore !== 0 && actualScore !== 0.5 && actualScore !== 1) {
+    throw new Error(`actualScore deve essere 0, 0.5 o 1, ricevuto: ${actualScore}`);
+  }
   return kFactor * (actualScore - expectedScore);
 }
 
@@ -63,12 +113,14 @@ export function calculate1X2Probabilities(
   config: EloConfig = DEFAULT_ELO_CONFIG,
   manualHomeAdjustment: number = 0
 ): { probHomeWin: number; probDraw: number; probAwayWin: number; ratingDiff: number } {
+  validateFinite(homeRating, "homeRating");
+  validateFinite(awayRating, "awayRating");
+  validateConfig(config);
+  validateFinite(manualHomeAdjustment, "manualHomeAdjustment");
+
   // Applica l'home advantage standard e l'eventuale correzione manuale
-  // manualHomeAdjustment è espresso in percentuale (es. +15% per default).
-  // Mappiamo il manualHomeAdjustment a una variazione del rating di home advantage:
-  // Se manualHomeAdjustment = 0, usiamo l'homeAdvantage standard.
-  // Se manualHomeAdjustment != 0, lo scaliamo: (1 + adjustment / 100) * standard_home_advantage
   const effectiveHomeAdvantage = config.homeAdvantage * (1 + manualHomeAdjustment / 100);
+  validateFinite(effectiveHomeAdvantage, "effectiveHomeAdvantage");
   const ratingDiff = homeRating + effectiveHomeAdvantage - awayRating;
 
   // Formule logistiche con margine di pareggio (drawMargin, delta)
@@ -76,13 +128,26 @@ export function calculate1X2Probabilities(
   
   const pHomeWinRaw = 1 / (1 + Math.pow(10, -(ratingDiff - delta) / 400));
   const pAwayWinRaw = 1 / (1 + Math.pow(10, (ratingDiff + delta) / 400));
-  const pDrawRaw = Math.max(0, 1 - pHomeWinRaw - pAwayWinRaw);
+  
+  validateFinite(pHomeWinRaw, "pHomeWinRaw");
+  validateFinite(pAwayWinRaw, "pAwayWinRaw");
+
+  const pDrawRaw = 1 - pHomeWinRaw - pAwayWinRaw;
+  validateFinite(pDrawRaw, "pDrawRaw");
+
+  // Rifiuta probabilità o masse numeriche impossibili
+  if (pHomeWinRaw < 0 || pAwayWinRaw < 0 || pDrawRaw < 0 || (pHomeWinRaw + pAwayWinRaw) > 1.0001) {
+    throw new Error(`Masse probabilistiche Elo non valide: pHomeWinRaw=${pHomeWinRaw}, pAwayWinRaw=${pAwayWinRaw}, pDrawRaw=${pDrawRaw}`);
+  }
 
   const sumRaw = pHomeWinRaw + pAwayWinRaw + pDrawRaw;
+  if (sumRaw <= 0) {
+    throw new Error(`Somma delle probabilità grezze nulla o negativa: ${sumRaw}`);
+  }
 
-  let probHomeWin = sumRaw > 0 ? (pHomeWinRaw / sumRaw) * 100 : 33.3333;
-  let probAwayWin = sumRaw > 0 ? (pAwayWinRaw / sumRaw) * 100 : 33.3333;
-  let probDraw = sumRaw > 0 ? (pDrawRaw / sumRaw) * 100 : 33.3334;
+  let probHomeWin = (pHomeWinRaw / sumRaw) * 100;
+  let probAwayWin = (pAwayWinRaw / sumRaw) * 100;
+  let probDraw = (pDrawRaw / sumRaw) * 100;
 
   // Normalizzazione rigorosa al 100%
   probHomeWin = Math.max(0, Math.min(100, probHomeWin));
@@ -90,11 +155,13 @@ export function calculate1X2Probabilities(
   probDraw = Math.max(0, Math.min(100, probDraw));
 
   const totalSum = probHomeWin + probAwayWin + probDraw;
-  if (totalSum > 0) {
-    probHomeWin = (probHomeWin / totalSum) * 100;
-    probDraw = (probDraw / totalSum) * 100;
-    probAwayWin = 100 - probHomeWin - probDraw; // Somma esattamente 100%
+  if (totalSum <= 0) {
+    throw new Error("Somma totale delle probabilità normalizzate nulla o negativa.");
   }
+
+  probHomeWin = (probHomeWin / totalSum) * 100;
+  probDraw = (probDraw / totalSum) * 100;
+  probAwayWin = 100 - probHomeWin - probDraw; // Somma esattamente 100%
 
   return {
     probHomeWin,
@@ -120,6 +187,24 @@ export function generatePredictionResult(
   config: EloConfig = DEFAULT_ELO_CONFIG,
   isManualFallback: boolean = false
 ): PredictionResult {
+  validateFinite(homeRating, "homeRating");
+  validateFinite(awayRating, "awayRating");
+  validateFinite(leagueHomeGoals, "leagueHomeGoals");
+  validateFinite(leagueAwayGoals, "leagueAwayGoals");
+  validateFinite(matchesPlayed, "matchesPlayed");
+  validateFinite(manualHomeAdjustment, "manualHomeAdjustment");
+  validateConfig(config);
+
+  if (leagueHomeGoals < 0) {
+    throw new Error("Media gol della lega in casa (leagueHomeGoals) non può essere negativa.");
+  }
+  if (leagueAwayGoals < 0) {
+    throw new Error("Media gol della lega in trasferta (leagueAwayGoals) non può essere negativa.");
+  }
+  if (matchesPlayed < 0) {
+    throw new Error("Partite giocate (matchesPlayed) non può essere negativo.");
+  }
+
   const { probHomeWin, probDraw, probAwayWin, ratingDiff } = calculate1X2Probabilities(
     homeRating,
     awayRating,
@@ -128,16 +213,16 @@ export function generatePredictionResult(
   );
 
   // Stima dei gol attesi (Expected Goals) basata sull'expected score classico
-  // Media totale gol del campionato (default 2.6 se non valido)
-  const avgTotalGoals = (leagueHomeGoals > 0 && leagueAwayGoals > 0) ? (leagueHomeGoals + leagueAwayGoals) : 2.6;
+  const avgTotalGoals = leagueHomeGoals + leagueAwayGoals;
   const expectedScoreHome = calculateExpectedScore(homeRating, awayRating, config.homeAdvantage * (1 + manualHomeAdjustment / 100));
+  validateFinite(expectedScoreHome, "expectedScoreHome");
 
   // Ripartizione proporzionale all'expected score
-  let homeExpectedGoals = avgTotalGoals * expectedScoreHome;
-  let awayExpectedGoals = avgTotalGoals * (1 - expectedScoreHome);
+  const homeExpectedGoals = Math.max(0.1, avgTotalGoals * expectedScoreHome);
+  const awayExpectedGoals = Math.max(0.1, avgTotalGoals * (1 - expectedScoreHome));
 
-  homeExpectedGoals = Math.max(0.1, isNaN(homeExpectedGoals) ? 1.3 : homeExpectedGoals);
-  awayExpectedGoals = Math.max(0.1, isNaN(awayExpectedGoals) ? 1.3 : awayExpectedGoals);
+  validateFinite(homeExpectedGoals, "homeExpectedGoals");
+  validateFinite(awayExpectedGoals, "awayExpectedGoals");
 
   // Creazione griglia 13x13 (0-12 gol) per mercati secondari
   const CALC_LIMIT = 12;
@@ -297,6 +382,8 @@ export function generatePredictionResult(
       dataQuality: Math.round(dataQuality * 100) / 100,
       solidityIndex: Math.round(solidityIndex * 100) / 100,
       classification
-    }
+    },
+    eloManualFallback: isManualFallback,
+    warnings: warningsList
   };
 }

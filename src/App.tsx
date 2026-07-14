@@ -36,18 +36,8 @@ export default function App() {
   // Stato per notifica toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
-  // Caricamento storico iniziale da localStorage e validazione Elo
+  // Caricamento storico iniziale da localStorage
   useEffect(() => {
-    // Esegue i test di validazione matematica Elo
-    import('./elo/Elo.validation').then(({ runEloValidationTests }) => {
-      const report = runEloValidationTests();
-      if (report.success) {
-        console.log('%c✅ Elo Rating Model - Validazione Matematica Superata con Successo!', 'color: #10b981; font-weight: bold;', report.passedChecks);
-      } else {
-        console.error('❌ Elo Rating Model - Errore di Validazione Matematica:', report.errors);
-      }
-    });
-
     const cachedHistory = localStorage.getItem('football_lab_history');
     if (cachedHistory) {
       try {
