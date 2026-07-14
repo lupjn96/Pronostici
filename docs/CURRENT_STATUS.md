@@ -10,6 +10,7 @@ Questo documento descrive lo stato attuale di avanzamento tecnologico, stabilit√
 *   **Poisson standard (v1.1.0)**: **Completato e Stabile**. Supporta griglia probabilistica bidimensionale (13x13) per l'estrazione accurata dei punteggi esatti.
 *   **Dixon-Coles (v1.0.0)**: **Completato e Stabile**. Applica correttamente il fattore correttivo di interazione tra i gol per compensare la sottostima dei pareggi.
 *   **Poisson-Gamma empirico (v0.1.0)**: **Completato e Stabile**. Implementa l'approccio empirico basato sulle frequenze storiche per stimare le forze offensive e difensive dei team.
+*   **Elo Rating Model (v1.0.0)**: **Completato e Stabile**. Traccia i rating di forza relativa dei team in ordine cronologico. Integrato nel motore di backtesting in modo dinamico e immune da data leakage. In modalit√† di calcolo manuale (stateless) opera in modalit√† controllata predefinita (1500 Elo).
 
 ### B. Motore di Backtesting
 *   **Gestione Checkpoint**: **Completato**. Il motore salva la progressione della simulazione ad ogni batch, consentendo di riprendere esattamente dall'indice successivo all'ultimo match elaborato.
@@ -28,7 +29,6 @@ Questo documento descrive lo stato attuale di avanzamento tecnologico, stabilit√
 ## 2. LIMITAZIONI ATTUALI
 
 I seguenti moduli e funzionalit√† non sono attualmente implementati o integrati all'interno dell'applicazione:
-- **Elo**: Non implementato (rating dinamico della forma dei team).
 - **Time Decay avanzato**: Non implementato (funzione di decadimento temporale per pesare le partite recenti).
 - **Ensemble**: Non implementato (modelli ibridi combinati).
 - **Quote Analysis**: Non implementata (acquisizione e storicizzazione delle quote dei bookmaker).

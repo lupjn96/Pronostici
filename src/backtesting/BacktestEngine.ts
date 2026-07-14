@@ -7,6 +7,8 @@ import { getModelById } from '../modelRegistry';
 import { SavedPrediction, ActualMatchResult } from '../types';
 import { BacktestOptions, BacktestRun, BacktestMatchResult } from './BacktestTypes';
 import { saveBacktestRun, saveBacktestResults, getBacktestResultsPage, getBacktestRunById } from './BacktestRepository';
+import { generatePredictionResult } from '../elo/EloEngine';
+import { computeEloHistory, MatchEloSnapshot } from '../elo/EloHistoricalEngine';
 
 /**
  * Ordina in modo deterministico e cronologico le partite storiche.
@@ -82,6 +84,8 @@ export function getModelVersion(modelId: string): string {
       return '0.1.0';
     case 'dixon-coles':
       return '1.0.0';
+    case 'elo-rating':
+      return '1.0.0';
     default:
       return '1.0.0';
   }
@@ -145,6 +149,12 @@ export async function runBacktest(
 
     run.totalCandidateMatches = candidates.length;
     await saveBacktestRun(run);
+
+    // Precalcola la storia Elo se il modello Elo è selezionato
+    let eloHistoryMap: Map<string, MatchEloSnapshot> | null = null;
+    if (options.modelIds.includes('elo-rating')) {
+      eloHistoryMap = computeEloHistory(allCompMatches);
+    }
 
     // Recupera la lista dei risultati già salvati per evitare duplicazioni (Ripresa di un run interrotto)
     const existingResults = await getBacktestResultsPage(runId, 1, 1000000);
@@ -322,7 +332,28 @@ export async function runBacktest(
               }
 
               // Invocazione modello
-              const resultPrediction = model.calculate(features);
+              let resultPrediction;
+              if (model.id === 'elo-rating' && eloHistoryMap) {
+                const eloSnapshot = eloHistoryMap.get(currentMatch.id);
+                if (eloSnapshot) {
+                  resultPrediction = generatePredictionResult(
+                    eloSnapshot.homeEloBefore,
+                    eloSnapshot.awayEloBefore,
+                    currentMatch.homeTeam,
+                    currentMatch.awayTeam,
+                    features.leagueHomeGoals,
+                    features.leagueAwayGoals,
+                    features.matchesPlayed,
+                    features.manualHomeAdjustment,
+                    undefined, // default config
+                    false // not manual fallback
+                  );
+                } else {
+                  resultPrediction = model.calculate(features);
+                }
+              } else {
+                resultPrediction = model.calculate(features);
+              }
 
               // Valutazione mediante PerformanceEngine
               const savedPrediction: SavedPrediction = {
