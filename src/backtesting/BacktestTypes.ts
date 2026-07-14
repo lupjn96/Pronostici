@@ -94,3 +94,22 @@ export interface BacktestRun {
 
   error?: string;
 }
+
+export interface BacktestModelSummary {
+  modelId: string;
+  modelName: string;
+  modelVersion: string;
+  evaluatedPredictions: number;
+  skippedPredictions: number;
+  correct1X2Count: number;
+  accuracy1X2: number;
+  correctExactScoreCount: number;
+  exactScoreAccuracy: number;
+  averageBrierScore: number;
+  averageLogLoss: number;
+  averageProbabilityAssignedToActualOutcome: number;
+  averageHomeGoalsError: number;
+  averageAwayGoalsError: number;
+  averageTotalGoalsError: number;
+}
+

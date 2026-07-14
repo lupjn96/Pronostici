@@ -59,7 +59,7 @@ export function validateBacktestOptions(options: BacktestOptions): string[] {
 /**
  * Funzione di controllo del loop per la gestione del Pausa e del Cancel.
  */
-async function checkPauseAndCancel(
+export async function checkPauseAndCancel(
   isPaused: () => boolean,
   isCancelled: () => boolean
 ): Promise<boolean> {
@@ -69,6 +69,22 @@ async function checkPauseAndCancel(
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   return isCancelled();
+}
+
+/**
+ * Recupera la versione del modello in modo deterministico senza dipendere da proprietà dinamiche non digitate.
+ */
+export function getModelVersion(modelId: string): string {
+  switch (modelId) {
+    case 'poisson-standard':
+      return '1.1.0';
+    case 'poisson-gamma':
+      return '0.1.0';
+    case 'dixon-coles':
+      return '1.0.0';
+    default:
+      return '1.0.0';
+  }
 }
 
 export interface ProgressUpdate {
@@ -147,10 +163,21 @@ export async function runBacktest(
       // 1. Controlla pausa e annullamento prima di elaborare la partita corrente
       const cancelled = await checkPauseAndCancel(isPaused, isCancelled);
       if (cancelled) {
-        run.status = 'cancelled';
+        if (batchResults.length > 0) {
+          try {
+            await saveBacktestResults(batchResults);
+          } catch (dbErr) {
+            console.error('Errore nel salvataggio dei risultati parziali durante cancellazione:', dbErr);
+          }
+        }
         run.processedMatches = processedMatchesCount;
         run.evaluatedPredictions = evaluatedPredictionsCount;
         run.skippedMatches = skippedMatchesCount;
+        if (i > startIndex) {
+          run.lastProcessedMatchIndex = i - 1;
+          run.lastProcessedDate = candidates[i - 1].date;
+        }
+        run.status = 'cancelled';
         await saveBacktestRun(run);
         return run;
       }
@@ -194,7 +221,8 @@ export async function runBacktest(
         .filter(m => m && m.status === 'active');
 
       for (const model of activeModels) {
-        const resultId = `${runId}_${currentMatch.id}_${model.id}_${model.modelVersion}`;
+        const modelVersion = getModelVersion(model.id);
+        const resultId = `${runId}_${currentMatch.id}_${model.id}_${modelVersion}`;
         
         // Evita risultati duplicati
         if (existingIds.has(resultId)) {
@@ -215,7 +243,7 @@ export async function runBacktest(
               awayTeam: currentMatch.awayTeam,
               modelId: model.id,
               modelName: model.name,
-              modelVersion: model.modelVersion,
+              modelVersion: modelVersion,
               actualHomeGoals: currentMatch.homeGoals,
               actualAwayGoals: currentMatch.awayGoals,
               actualOutcome: getOutcome(currentMatch.homeGoals, currentMatch.awayGoals),
@@ -261,7 +289,7 @@ export async function runBacktest(
                   awayTeam: currentMatch.awayTeam,
                   modelId: model.id,
                   modelName: model.name,
-                  modelVersion: model.modelVersion,
+                  modelVersion: modelVersion,
                   actualHomeGoals: currentMatch.homeGoals,
                   actualAwayGoals: currentMatch.awayGoals,
                   actualOutcome: getOutcome(currentMatch.homeGoals, currentMatch.awayGoals),
@@ -323,7 +351,7 @@ export async function runBacktest(
                 awayTeam: currentMatch.awayTeam,
                 modelId: model.id,
                 modelName: model.name,
-                modelVersion: model.modelVersion,
+                modelVersion: modelVersion,
                 actualHomeGoals: currentMatch.homeGoals,
                 actualAwayGoals: currentMatch.awayGoals,
                 actualOutcome: evalResult.actualOutcome,
@@ -367,7 +395,7 @@ export async function runBacktest(
                 awayTeam: currentMatch.awayTeam,
                 modelId: model.id,
                 modelName: model.name,
-                modelVersion: model.modelVersion,
+                modelVersion: modelVersion,
                 actualHomeGoals: currentMatch.homeGoals,
                 actualAwayGoals: currentMatch.awayGoals,
                 actualOutcome: getOutcome(currentMatch.homeGoals, currentMatch.awayGoals),
@@ -403,19 +431,23 @@ export async function runBacktest(
       const isLastMatch = i === candidates.length - 1;
       const isBatchEnd = (processedMatchesCount % options.batchSize === 0) || isLastMatch;
 
-      if (isBatchEnd && batchResults.length > 0) {
-        // Salvataggio incrementale
-        try {
-          await saveBacktestResults(batchResults);
-          batchResults = [];
-        } catch (dbErr: any) {
-          // Se IndexedDB fallisce, imposta status failed, conserva errore e non lasciare running
-          run.status = 'failed';
-          run.error = `Errore di scrittura in IndexedDB: ${dbErr.message || dbErr}`;
-          await saveBacktestRun(run);
-          throw dbErr;
+      if (isBatchEnd) {
+        let savedResults: BacktestMatchResult[] = [];
+        if (batchResults.length > 0) {
+          try {
+            await saveBacktestResults(batchResults);
+            savedResults = [...batchResults];
+            batchResults = [];
+          } catch (dbErr: any) {
+            // Se IndexedDB fallisce, imposta status failed, conserva errore e non lasciare running
+            run.status = 'failed';
+            run.error = `Errore di scrittura in IndexedDB: ${dbErr.message || dbErr}`;
+            await saveBacktestRun(run);
+            throw dbErr;
+          }
         }
 
+        // Salvare il checkpoint anche se batchResults è vuoto
         run.processedMatches = processedMatchesCount;
         run.evaluatedPredictions = evaluatedPredictionsCount;
         run.skippedMatches = skippedMatchesCount;
@@ -429,8 +461,9 @@ export async function runBacktest(
 
         await saveBacktestRun(run);
 
+        // Passare a onBatchCompleted i risultati realmente salvati
         if (onBatchCompleted) {
-          await onBatchCompleted([], run);
+          await onBatchCompleted(savedResults, run);
         }
       }
 

@@ -17,8 +17,7 @@ export const availableModels: PredictionModel[] = [
 export function getModelById(id: string): PredictionModel {
   const model = availableModels.find(m => m.id === id);
   if (!model) {
-    // Default di ripiego per sicurezza
-    return poissonModel;
+    throw new Error(`Modello con ID '${id}' non trovato.`);
   }
   return model;
 }

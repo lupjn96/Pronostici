@@ -2,7 +2,7 @@ import { HistoricalMatch } from '../dataCollector/HistoricalMatchTypes';
 import { calculateTeamStatistics, buildModelInputFromHistoricalData } from '../dataCollector/HistoricalFeatureCalculator';
 import { getOutcome, evaluatePrediction } from '../performance/PerformanceEngine';
 import { BacktestOptions, BacktestRun, BacktestMatchResult } from './BacktestTypes';
-import { sortMatchesChronologically, validateBacktestOptions, runBacktest } from './BacktestEngine';
+import { sortMatchesChronologically, validateBacktestOptions, runBacktest, checkPauseAndCancel } from './BacktestEngine';
 import { aggregateBacktestResults, rankBacktestModels } from './BacktestAggregator';
 import {
   saveBacktestRun,
@@ -255,8 +255,8 @@ export async function runBacktestValidation(): Promise<TestResult[]> {
   // TEST G — Meccanismo di Pausa
   // =========================================================================
   try {
-    let paused = true;
-    let cancelled = false;
+    let paused: boolean = true;
+    let cancelled: boolean = false;
 
     // Simula la funzione checkPauseAndCancel
     const checkPromise = checkPauseAndCancel(() => paused, () => cancelled);
@@ -268,7 +268,7 @@ export async function runBacktestValidation(): Promise<TestResult[]> {
 
     const wasCancelled = await checkPromise;
 
-    const passed = wasCancelled === false && paused === false;
+    const passed = !wasCancelled && !paused;
     results.push({
       name: 'TEST G: Sospensione e Ripresa (Pausa non-bloccante)',
       passed,
@@ -288,12 +288,12 @@ export async function runBacktestValidation(): Promise<TestResult[]> {
   // TEST H — Annullamento
   // =========================================================================
   try {
-    let paused = false;
-    let cancelled = true;
+    let paused: boolean = false;
+    let cancelled: boolean = true;
 
     const wasCancelled = await checkPauseAndCancel(() => paused, () => cancelled);
 
-    const passed = wasCancelled === true;
+    const passed = !!wasCancelled;
     results.push({
       name: 'TEST H: Interruzione Tempistica (Annullamento immediato)',
       passed,
