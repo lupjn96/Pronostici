@@ -6,12 +6,18 @@ Benvenuto! Questo file è la guida di riferimento obbligatoria per qualsiasi Age
 
 ## 1. DESCRIZIONE COMPLETA DEL PROGETTO
 
-**Pronostici** è un'applicazione web avanzata (SPA full-client) realizzata in **React**, **TypeScript** e **Tailwind CSS**, progettata per il calcolo e il backtesting di previsioni calcistiche basate su modelli statistici e matematici avanzati. 
+**Pronostici** è un'applicazione web (SPA full-client) realizzata in **React**, **TypeScript** e **Tailwind CSS**, progettata per il calcolo e il backtesting di previsioni calcistiche basate su modelli statistici e matematici. 
 
 L'obiettivo dell'applicazione è consentire agli utenti di:
 1. Calcolare la probabilità dei risultati (1X2, Over/Under, punteggio esatto) per singole partite inserendo dati storici o caricando dataset.
-2. Eseguire backtesting storici cronologici accurati per valutare la performance e la profittabilità dei diversi algoritmi statistici nel tempo (evitando rigorosamente il data leakage).
-3. Analizzare e classificare i modelli matematici attraverso metriche di errore e precisione standardizzate (Brier Score, Log Loss, accuratezza 1X2, errore medio sui gol).
+2. Eseguire backtesting storici cronologici accurati per valutare la performance e l'accuratezza dei diversi algoritmi statistici nel tempo (evitando il data leakage).
+3. Analizzare e classificare i modelli matematici attraverso metriche di errore e precisione statistica standardizzate:
+   - **Accuracy 1X2**
+   - **Brier Score**
+   - **Log Loss**
+   - **Goal Error** (errore medio sui gol)
+
+*Nota: ROI, Quote Analysis e Value Betting non sono attualmente supportati e saranno introdotti successivamente.*
 
 ---
 
@@ -20,10 +26,10 @@ L'obiettivo dell'applicazione è consentire agli utenti di:
 L'architettura è interamente client-side per garantire privacy, reattività e assenza di costi di infrastruttura server. Utilizza i seguenti componenti chiave:
 
 *   **UI Layer (React + Tailwind CSS + Lucide Icons)**: Componenti funzionali puliti basati su stati React per un'esperienza d'uso fluida e reattiva.
-*   **Data Layer (IndexedDB)**: Persistenza locale durevole per dataset storici, partite caricate, configurazioni e risultati di backtesting. Gestito tramite API asincrone Promise-based native.
-*   **Mathematical Models Engine**: Moduli matematici isolati e deterministici (Poisson, Dixon-Coles, Poisson-Gamma, ecc.) che ricevono feature standardizzate e restituiscono distribuzioni probabilistiche complete.
+*   **Data Layer (IndexedDB)**: Persistenza locale per dataset storici, partite caricate, configurazioni e risultati di backtesting. Gestito tramite API asincrone Promise-based native per memorizzare in sicurezza i dati nel browser dell'utente.
+*   **Mathematical Models Engine**: Moduli matematici isolati e deterministici (Poisson, Dixon-Coles, Poisson-Gamma empirico, ecc.) che ricevono feature standardizzate e restituiscono distribuzioni probabilistiche complete.
 *   **Backtesting Engine**: Un motore asincrono batch-based in grado di riprendere da checkpoint, gestire pause, annullamenti e salvataggi incrementali consistenti su IndexedDB.
-*   **Performance Engine**: Calcola metriche di accuratezza e scores statistici (Log Loss, Brier Score) confrontando i pronostici generati con i risultati reali delle partite.
+*   **Performance Engine**: Calcola metriche di accuratezza e score statistici (Log Loss, Brier Score, errore sui gol) confrontando i pronostici generati con i risultati reali delle partite.
 
 ---
 
@@ -38,7 +44,7 @@ Il flusso dei dati segue un percorso unidirezionale e rigoroso:
     [HistoricalMatch] (Salvataggio in IndexedDB)
               │
               ▼
-[HistoricalFeatureCalculator] (Calcolo medie, pesi, Time Decay)
+[HistoricalFeatureCalculator] (Calcolo medie, pesi)
               │
               ▼
         [ModelInput] (Parametri puliti pronti per l'analisi)
@@ -50,7 +56,7 @@ Il flusso dei dati segue un percorso unidirezionale e rigoroso:
         [MatchFeatures] (Parametri standardizzati del match)
               │
               ▼
- [PredictionModel.calculate()] (Esecuzione Poisson / Dixon-Coles)
+ [PredictionModel.calculate()] (Esecuzione Poisson / Dixon-Coles / Poisson-Gamma)
               │
               ▼
        [PredictionResult] (Probabilità 1X2, Gol Attesi, Punteggi Esatti)
@@ -86,7 +92,7 @@ Ogni agente o sviluppatore deve attenersi alle seguenti regole:
 *   `src/modelRegistry.ts`: Registro centralizzato dei modelli predittivi disponibili nel sistema.
 *   `src/poissonEngine.ts`: Motore predittivo basato sulla distribuzione di Poisson standard.
 *   `src/dixonColesEngine.ts`: Motore basato sul modello Dixon-Coles con correzione di dipendenza a bassi gol.
-*   `src/poissonGammaEngine.ts`: Motore basato sulla coniugata Poisson-Gamma per aggiornamento dinamico Bayesiano delle forze dei team.
+*   `src/poissonGammaEngine.ts`: Motore basato sul modello empirico Poisson-Gamma per la stima delle forze dei team.
 
 ---
 
@@ -117,5 +123,5 @@ Prima di avviare qualsiasi sotto-attività o modifica del codice, l'Agente AI de
 *   **Fase 1 (Completata)**: Stabilizzazione del Backtesting Engine, rimozione dei fallback silenziosi, correzione della ripresa da checkpoint e gestione robusta di pausa/annullamento.
 *   **Fase 2**: Integrazione dell'algoritmo Elo per tracciare lo stato di forma dinamico dei team.
 *   **Fase 3**: Introduzione del decadimento temporale avanzato per pesare maggiormente i match più recenti.
-*   **Fase 4**: Sviluppo del modulo di Value Betting e analisi delle quote reali del mercato per calcolare il ROI teorico.
-*   **Fase 5**: Creazione di un AI Analyst integrato per interpretare i risultati aggregati del backtest.
+*   **Fase 4**: Sviluppo del modulo di Quote Analysis e Value Betting per l'analisi dei mercati reali.
+*   **Fase 5**: Creazione di un AI Analyst integrato per interpretare i risultati statistici del backtest.

@@ -9,7 +9,7 @@ Questo documento illustra il funzionamento pratico, le metriche statistiche e l'
 Il backtesting simula storicamente le performance dei modelli predittivi su una serie di partite reali già disputate in passato. 
 Per garantire che il backtest sia scientificamente accurato, il motore adotta un approccio **strettamente cronologico**:
 1. Ordina deterministicamente tutte le partite candidate per data e ora.
-2. Per ogni partita, ricostruisce lo stato esatto del campionato *immediatamente prima* del calcio d'inizio, isolando tutti i dati futuri per evitare il **data leakage**.
+2. Per ogni partita, isola e utilizza esclusivamente dati storici precedenti alla data della partita stessa per evitare il **data leakage**.
 3. Calcola i parametri statistici ed esegue il pronostico.
 4. Confronta il pronostico con l'esito reale e assegna le metriche di accuratezza.
 
@@ -28,22 +28,33 @@ Per garantire che il backtest sia scientificamente accurato, il motore adotta un
 
 ## 3. METRICHE STATISTICHE DI PERFORMANCE EVALUATION
 
-Il motore calcola ed aggrega diverse metriche di performance standardizzate a livello internazionale:
+Il motore calcola ed aggrega esclusivamente metriche di performance statistica:
 
-### A. Brier Score
+### A. Accuratezza 1X2 (%)
+La percentuale di partite in cui il segno con la probabilità più alta (Home Win, Draw, o Away Win) coincide con il risultato finale reale del match.
+
+### B. Brier Score
 Misura l'accuratezza delle probabilità assegnate ai tre possibili esiti (1-X-2). Calcola l'errore quadratico medio tra le probabilità stimate e il risultato reale (vettore binario di verità):
 
 $$BS = \frac{1}{N} \sum_{i=1}^N \sum_{j=1}^C (p_{ij} - o_{ij})^2$$
 
-Dove $p_{ij}$ è la probabilità stimata per l'esito $j$ e $o_{ij}$ è 1 se l'esito $j$ si è verificato, altrimenti 0. Un valore vicino a **0** indica un modello perfetto, mentre valori più alti indicano scarsa calibrazione probabilistica.
+Dove $p_{ij}$ è la probabilità stimata per l'esito $j$ e $o_{ij}$ è 1 se l'esito $j$ si è verificato, altrimenti 0. Un valore vicino a **0** indica un modello perfetto.
 
-### B. Log Loss (Perdita Logaritmica)
+### C. Log Loss (Perdita Logaritmica)
 Assegna una forte penalità a previsioni errate formulate con alta confidenza. Calcola l'opposto del logaritmo naturale della probabilità assegnata all'esito che si è effettivamente verificato:
 
 $$LL = -\ln(p_{\text{esito reale}})$$
 
-### C. Accuratezza 1X2 (%)
-La percentuale di partite in cui il segno con la probabilità più alta (Home Win, Draw, o Away Win) coincide con il risultato finale reale del match.
-
-### D. Errore Assoluto Medio dei Gol (MAE)
+### D. Errore Assoluto Medio dei Gol (Goal Error)
 La differenza media in valore assoluto tra i gol reali segnati e i gol attesi stimati dal modello per il team di casa, ospite e complessivi.
+
+---
+
+## 4. COSA NON FA ANCORA IL MOTORE DI BACKTESTING
+
+Attualmente, il motore di backtesting **non include** e **non calcola** metriche di tipo finanziario o di mercato. Di conseguenza, le seguenti funzionalità non fanno ancora parte del motore:
+- **ROI / Yield / Drawdown** (Rendimento degli investimenti)
+- **Quote Analysis** (Caricamento e analisi delle quote storiche dei bookmaker)
+- **Value Betting** (Calcolo del valore atteso rispetto alle quote di mercato)
+
+Queste funzionalità saranno sviluppate e integrate in una fase successiva.

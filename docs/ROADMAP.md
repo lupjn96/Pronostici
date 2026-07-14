@@ -24,11 +24,19 @@ Questo documento delinea il piano di sviluppo a medio e lungo termine per l'evol
 └────────────────────────────┬────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────┐
-│            FASE 5: VALUE BETTING & QUOTE                │
+│                 FASE 5: QUOTE ANALYSIS                  │
 └────────────────────────────┬────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────┐
-│         FASE 6: MACHINE LEARNING & AI ANALYST           │
+│                 FASE 6: VALUE BETTING                   │
+└────────────────────────────┬────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────┐
+│               FASE 7: MACHINE LEARNING                  │
+└────────────────────────────┬────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────┐
+│                  FASE 8: AI ANALYST                     │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -48,14 +56,18 @@ Questo documento delinea il piano di sviluppo a medio e lungo termine per l'evol
 *   **Obiettivo**: Creare un modello ibrido (Ensemble) in grado di combinare le distribuzioni probabilistiche di Poisson, Dixon-Coles e Poisson-Gamma con pesi ottimizzati tramite ottimizzatori matematici locali.
 *   **Impatto**: Riduzione dei singoli bias di modello e incremento della resilienza complessiva dei pronostici in fase di backtesting.
 
-### 4. Value Betting & Quote Analysis (Analisi della Profittabilità)
-*   **Obiettivo**: Integrare il caricamento di quote di mercato storiche (1X2, Under/Over) e calcolare il valore atteso della scommessa (Expected Value, EV) tramite la formula:
+### 4. Quote Analysis (Analisi delle Quote)
+*   **Obiettivo**: Caricamento di quote di mercato storiche (1X2, Under/Over) e tracciamento delle deviazioni e delle variazioni delle quote storiche dei bookmaker.
+*   **Impatto**: Permette di analizzare le variazioni di quota prima degli eventi e preparare il terreno per le scommesse di valore.
+
+### 5. Value Betting (Analisi della Profittabilità)
+*   **Obiettivo**: Calcolare il valore atteso della scommessa (Expected Value, EV) tramite la formula:
     $$EV = (Probabilità \times Quota) - 1$$
 *   **Impatto**: Consente di simulare vere e proprie strategie di scommessa e calcolare metriche finanziarie reali (ROI, Yield, drawdown) durante il backtesting.
 
-### 5. Machine Learning Integration
+### 6. Machine Learning Integration
 *   **Obiettivo**: Implementare regressori locali (es. Regressione Logistica o alberi di decisione leggeri tramite librerie JS matematiche) in grado di combinare feature complesse (possesso palla storico, tiri in porta, Expected Goals reali).
 *   **Impatto**: Passaggio da modelli puramente basati sui gol a modelli basati sulle reali performance di gioco dei team.
 
-### 6. AI Analyst (Modulo Generativo)
-*   **Obiettivo**: Integrare un assistente basato su LLM (come la famiglia Gemini) per interpretare i risultati aggregati del backtest, individuare debolezze di configurazione e suggerire ottimizzazioni delle opzioni (es. suggerire una variazione ottimale del `batchSize` o del `minimumMatches` in base alla competizione selezionata).
+### 7. AI Analyst (Modulo Generativo)
+*   **Obiettivo**: Integrare un assistente basato su LLM (come la famiglia Gemini) per interpretare i risultati statistici del backtest, individuare debolezze di configurazione e suggerire ottimizzazioni delle opzioni.
